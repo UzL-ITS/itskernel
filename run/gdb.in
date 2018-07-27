@@ -1,0 +1,6 @@
+target remote localhost:1234
+symbol-file ../code/itskernel
+set disassembly-flavor intel
+set print pretty on
+break init
+c

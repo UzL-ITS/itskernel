@@ -1,0 +1,6 @@
+https://wiki.osdev.org/GCC_Cross-Compiler
+Execute these commands in the shell first:
+
+export PREFIX="/mnt/c/Users/ITS/Daten/Work/itskernel/compiler"
+export TARGET=x86_64-elf
+export PATH="$PREFIX/bin:$PATH"
