@@ -32,8 +32,8 @@ void vga_init(void)
 	colCount = vbe_get_screen_width() / COL_WIDTH;
 	
 	// Set colors
-	vbe_set_front_color(255, 255, 255);
-	vbe_set_back_color(0, 0, 0);
+	vbe_set_front_color(VBE_KERNEL_CONTEXT, 255, 255, 255);
+	vbe_set_back_color(VBE_KERNEL_CONTEXT, 0, 0, 0);
 }
 
 void vga_puts(const char *str)
@@ -85,7 +85,7 @@ void vga_putch(char c)
 			if(col > 0)
 			{
 				--col;
-				vbe_render_char(col * COL_WIDTH, row * ROW_HEIGHT, ' ');
+				vbe_render_char(VBE_KERNEL_CONTEXT, col * COL_WIDTH, row * ROW_HEIGHT, ' ');
 			}
 			break;
 		}
@@ -93,7 +93,7 @@ void vga_putch(char c)
 		default:
 		{
 			// Just draw the character
-			vbe_render_char(col * COL_WIDTH, row * ROW_HEIGHT, c);
+			vbe_render_char(VBE_KERNEL_CONTEXT, col * COL_WIDTH, row * ROW_HEIGHT, c);
 			++col;
 			break;
 		}
@@ -118,16 +118,16 @@ void vga_putch(char c)
 	if(col == 0 && wrapAroundOccured)
 	{
 		// Set clear color
-		vbe_set_front_color(0, 0, 0);
+		vbe_set_front_color(VBE_KERNEL_CONTEXT, 0, 0, 0);
 
 		// Clear current row
-		vbe_rectangle(0, row * ROW_HEIGHT, colCount * COL_WIDTH, ROW_HEIGHT);
+		vbe_rectangle(VBE_KERNEL_CONTEXT, 0, row * ROW_HEIGHT, colCount * COL_WIDTH, ROW_HEIGHT);
 
 		// Clear next row, if there is any
 		if(row < rowCount - 1)
-			vbe_rectangle(0, (row + 1) * ROW_HEIGHT, colCount * COL_WIDTH, ROW_HEIGHT);
+			vbe_rectangle(VBE_KERNEL_CONTEXT, 0, (row + 1) * ROW_HEIGHT, colCount * COL_WIDTH, ROW_HEIGHT);
 
 		// Reset color
-		vbe_set_front_color(255, 255, 255);
+		vbe_set_front_color(VBE_KERNEL_CONTEXT, 255, 255, 255);
 	}
 }

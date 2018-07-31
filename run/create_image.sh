@@ -9,7 +9,8 @@ fi
 mkdir -p mnt
 sudo mount -o loop,offset=1048576 disk.img mnt
 sudo mkdir -p mnt/bin
-sudo cp ../code/itskernel mnt/boot
+sudo cp ../code/kernel/itskernel mnt/boot
+sudo cp ../code/ui/itskernelui mnt/bin
 sudo cp grub.cfg mnt/boot/grub
 sync
 sudo umount mnt

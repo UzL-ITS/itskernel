@@ -29,6 +29,9 @@ typedef struct proc
 
   /* memory segments */
   seg_t segments;
+  
+  // VBE context identifier.
+  int vbeContext;
 } proc_t;
 
 proc_t *proc_create(void);

@@ -270,5 +270,5 @@ disk.img*
 # Compiler outputs
 *.o
 *.d
-code/itskernel
-code/itskernel.asm
+code/kernel/itskernel
+code/kernel/itskernel.asm

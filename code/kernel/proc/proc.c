@@ -6,6 +6,7 @@
 #include <mm/vmm.h>
 #include <lock/intr.h>
 #include <stdlib/stdlib.h>
+#include <vbe/vbe.h>
 
 proc_t *proc_create(void)
 {
@@ -35,6 +36,9 @@ proc_t *proc_create(void)
     free(proc);
     return 0;
   }
+  
+  // Create VBE context for this process
+  proc->vbeContext = vbe_create_context();
 
   proc->state = PROC_RUNNING;
   list_init(&proc->thread_list);
@@ -49,6 +53,7 @@ proc_t *proc_get(void)
 
 void proc_switch(proc_t *proc)
 {
+  // Set current process and load address space
   cpu_t *cpu = cpu_get();
   cpu->proc = proc;
   cr3_write(proc->pml4_table);

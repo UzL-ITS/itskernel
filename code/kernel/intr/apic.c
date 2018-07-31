@@ -105,6 +105,7 @@ void apic_write(size_t reg, uint64_t val)
 
 static void apic_timer_calibrate(void)
 {
+  // Use the PIT timer to measure amount of ticks the APIC timer counts in 10ms
   cpu_t *cpu = cpu_get();
 
   static spinlock_t apic_calibrate_lock = SPIN_UNLOCKED;
@@ -180,7 +181,7 @@ void apic_init(void)
   /* reset the priority so we accept all interrupts */
   apic_write(APIC_TPR, 0);
 
-  /* ack any outstounding interrupts */
+  /* ack any outstanding interrupts */
   apic_ack();
 
   /* calibrate this APIC's timer */

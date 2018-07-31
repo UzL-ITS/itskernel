@@ -1,0 +1,1 @@
+This code runs as a separate process and provides a user interface for the kernel.

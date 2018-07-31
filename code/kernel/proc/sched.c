@@ -19,6 +19,7 @@ static list_t thread_queue = LIST_EMPTY;
 
 void sched_init(void)
 {
+  // Start scheduler timer for this CPU
   if (smp_mode == MODE_SMP)
     apic_monotonic(SCHED_TIMESLICE, &sched_tick);
   else
