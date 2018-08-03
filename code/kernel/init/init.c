@@ -169,9 +169,9 @@ noreturn void init(uint32_t magic, multiboot_t *multiboot)
 	keyboard_init();
 
 	/* set up modules */
+	// Do this BEFORE starting the scheduler, else we might run into a race condition where the scheduler interrupt fires before it can be disabled, leaving execution stuck in the idle() process
 	trace_puts("Loading modules...\n");
 	module_init(multiboot);
-	// This line might be never reached
 
 	/* set up the scheduler for this core, also needs SMP mode */
 	trace_puts("Initializing scheduler...\n");
