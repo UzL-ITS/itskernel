@@ -30,6 +30,7 @@
 #include <stdlib/string.h>
 #include <stdbool.h>
 #include <vbe/vbe.h>
+#include <io/keyboard.h>
 
 static void print_banner(void)
 {
@@ -140,8 +141,8 @@ noreturn void init(uint32_t magic, multiboot_t *multiboot)
 	}
 
 	/* set up the local APIC on the BSP if we are in SMP mode */
-	if (!up_fallback)
-	apic_init();
+	if(!up_fallback)
+		apic_init();
 
 	/* enable BSP interrupts now the IDT and interrupt controllers are set up */
 	intr_unlock();
@@ -163,12 +164,18 @@ noreturn void init(uint32_t magic, multiboot_t *multiboot)
 
 	/* set up NMI routing, this must be done when we are in SMP mode */
 	nmi_init();
-
-	/* set up the scheduler for this core, also needs SMP mode */
-	sched_init();
+	
+	// Initialize I/O devices
+	keyboard_init();
 
 	/* set up modules */
+	trace_puts("Loading modules...\n");
 	module_init(multiboot);
+	// This line might be never reached
+
+	/* set up the scheduler for this core, also needs SMP mode */
+	trace_puts("Initializing scheduler...\n");
+	sched_init();
 
 	/* halt forever - the scheduler will take over from here */
 	halt_forever();

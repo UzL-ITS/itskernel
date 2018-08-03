@@ -14,3 +14,5 @@ sudo cp ../code/ui/itskernelui mnt/bin
 sudo cp grub.cfg mnt/boot/grub
 sync
 sudo umount mnt
+rm disk.vdi
+VBoxManage convertdd disk.img disk.vdi --format VDI

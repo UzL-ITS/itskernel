@@ -10,6 +10,7 @@
 #include <panic/panic.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <trace/trace.h>
 
 static void madt_flags_to_trigger(irq_tuple_t *tuple, uint16_t flags)
 {
@@ -49,6 +50,7 @@ void madt_scan(madt_t *madt)
           uint32_t gsi = entry->intr.gsi;
           uint16_t flags = entry->intr.flags;
 
+		  trace_printf("MADT INTR\t   bus=0x%02x  line=0x%02x  gsi=0x%08x  flags=0x%04x\n", bus, line, gsi, flags);
           if (bus == MADT_INTR_BUS_ISA)
           {
             if (line >= ISA_INTR_LINES)
@@ -65,9 +67,11 @@ void madt_scan(madt_t *madt)
       case MADT_TYPE_LAPIC_ADDR:
         /* override the LAPIC address with a 64-bit one */
         lapic_addr = entry->lapic_addr.addr;
+		trace_printf("MADT LADDR\t   addr=0x%016x\n", lapic_addr);
         break;
 
       case MADT_TYPE_LAPIC:
+		trace_printf("MADT LAPIC\t   id=0x%02x  apicid=0x%02x  flags=0x%08x\n", entry->lapic.id, entry->lapic.apic_id, entry->lapic.flags);
         if (entry->lapic.flags & MADT_LAPIC_FLAGS_ENABLED)
         {
           uint8_t id  = entry->lapic.id;
@@ -98,6 +102,7 @@ void madt_scan(madt_t *madt)
           uint8_t id = entry->ioapic.id;
           uint32_t addr = entry->ioapic.addr;
           uint32_t gsi_base = entry->ioapic.gsi_base;
+		  trace_printf("MADT IOAPIC\t   id=0x%02x  addr=0x%08x  gsi=0x%08x\n", id, addr, gsi_base);
           if (!ioapic_init(id, addr, gsi_base))
             panic("failed to register I/O APIC");
         }
@@ -107,6 +112,8 @@ void madt_scan(madt_t *madt)
         {
           uint32_t gsi = entry->nmi.gsi;
           uint16_t flags = entry->nmi.flags;
+		  
+		  trace_printf("MADT NMI \t   gsi=0x%08x  flags=0x%04x\n", gsi, flags);
 
           irq_tuple_t tuple;
           tuple.irq = gsi;

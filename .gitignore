@@ -272,3 +272,4 @@ disk.img*
 *.d
 code/kernel/itskernel
 code/kernel/itskernel.asm
+*.vdi

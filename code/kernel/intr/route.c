@@ -10,6 +10,7 @@
 #include <panic/panic.h>
 #include <stdlib/assert.h>
 #include <stdlib/stdlib.h>
+#include <trace/trace.h>
 
 typedef struct intr_handler_node
 {
@@ -99,9 +100,11 @@ bool _intr_route_irq(irq_tuple_t *tuple, intr_t intr)
     /* check if the IRQ belongs to this I/O APIC */
     irq_t irq_first = apic->irq_base;
     irq_t irq_last = apic->irq_base + apic->irqs - 1;
+	trace_printf("Checking I/O Apic: 0x%2x ... 0x%2x\n", irq_first, irq_last);
     if (irq >= irq_first && irq < irq_last)
     {
       /* program the I/O APIC */
+	  trace_printf("Routing interrupt %d to I/O APIC...\n", intr);
       ioapic_route(apic, tuple, intr);
 
       // TODO: fail if I/O APIC is already programmed to route to a _different_

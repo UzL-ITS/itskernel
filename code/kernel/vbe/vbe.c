@@ -5,6 +5,7 @@
 #include <mm/heap.h>
 #include <stdbool.h>
 #include <panic/panic.h>
+#include <lock/spinlock.h>
 
 
 // VBE drawing context descriptor.
@@ -22,6 +23,7 @@ typedef struct
 	uint32_t colorBack;
 } vbe_context_t;
 
+
 // ARGB foreground and background colors (32-bit color).
 static uint32_t colorFront;
 static uint32_t colorBack;
@@ -33,7 +35,8 @@ static uint32_t *renderBuffer;
 
 // Drawing contexts containing background buffers with the same dimensions as the render buffer,
 // which are then blitted to video memory (instead of directly writing to the render buffer).
-#define VBE_CONTEXT_COUNT 10
+// TODO use linked list here eventually
+#define VBE_CONTEXT_COUNT 12
 static vbe_context_t contexts[VBE_CONTEXT_COUNT];
 int currentContext = 0;
 
@@ -45,6 +48,9 @@ static uint32_t *currentBuffer; // Holds the current image
 // This is needed since debug outputs might be printed before the memory manager is up.
 static bool buffersAllocated = false;
 
+// Lock to ensure ordered access to the context management.
+static spinlock_t vbeContextLock = SPIN_UNLOCKED;
+
 
 // Blits the given rectangle to video memory.
 static void _vbe_blit_to_video_memory(int contextId, uint16_t posX, uint16_t posY, uint16_t width, uint16_t height)
@@ -53,9 +59,15 @@ static void _vbe_blit_to_video_memory(int contextId, uint16_t posX, uint16_t pos
 	if(!buffersAllocated)
 		return;
 
+	// Avoid race conditions
+	spin_lock(&vbeContextLock);
+	
 	// Only draw current context
 	if(contextId != currentContext)
+	{
+		spin_unlock(&vbeContextLock);
 		return;
+	}
 	
 	// Run through rectangle pixels
 	uint16_t xMax = posX + width;
@@ -79,17 +91,14 @@ static void _vbe_blit_to_video_memory(int contextId, uint16_t posX, uint16_t pos
 			++pixelPrevious;
 		}
 	}
-}
-
-void vbe_redraw()
-{
-	// Copy back buffer into video memory
-	for(int i = 0; i < renderBufferWidth * renderBufferHeight; ++i)
-		renderBuffer[i] = previousBuffer[i];
+	
+	spin_unlock(&vbeContextLock);
 }
 
 int vbe_create_context()
 {
+	spin_lock(&vbeContextLock);
+	
 	// Try to find unused context
 	for(int i = 0; i < VBE_CONTEXT_COUNT; ++i)
 		if(!contexts[i].inUse)
@@ -103,12 +112,19 @@ int vbe_create_context()
 			context->colorFront = 0x00FFFFFF;
 			context->colorBack = 0x00000000;
 			if(!context->previousBuffer || !context->currentBuffer)
+			{
+				spin_unlock(&vbeContextLock);
 				return -2; // TODO better error codes
+			}
 			
 			// Context is up, return its identifier
 			context->inUse = true;
+			spin_unlock(&vbeContextLock);
+			trace_printf("Created VBE context #%d\n", i);
 			return i;
 		}
+		
+	spin_unlock(&vbeContextLock);
 	return -1;
 }
 
@@ -121,22 +137,28 @@ void vbe_show_context(int contextId)
 	// Get drawing context
 	vbe_context_t *context = &contexts[contextId];
 	
-	// Load context data
-	previousBuffer = context->previousBuffer;
-	currentBuffer = context->currentBuffer;
-	colorFront = context->colorFront;
-	colorBack = context->colorBack;
-	currentContext = contextId;
-	
-	if(buffersAllocated)
+	spin_lock(&vbeContextLock);
 	{
-		// Update "previous" buffer (it still contains the pixels when the drawing context was rendered last time)
-		for(int i = 0; i < renderBufferWidth * renderBufferHeight; ++i)
-			previousBuffer[i] = currentBuffer[i];
+		// Load context data
+		previousBuffer = context->previousBuffer;
+		currentBuffer = context->currentBuffer;
+		colorFront = context->colorFront;
+		colorBack = context->colorBack;
+		currentContext = contextId;
 	
-		// Redraw
-		vbe_redraw();
+		if(buffersAllocated)
+		{
+			// Update "previous" buffer (it still contains the pixels when the drawing context was rendered last time), and redraw whole screen
+			for(int i = 0; i < renderBufferWidth * renderBufferHeight; ++i)
+			{
+				uint32_t pixel = currentBuffer[i];
+				previousBuffer[i] = pixel;
+				renderBuffer[i] = pixel;
+			}
+		}
+	
 	}
+	spin_unlock(&vbeContextLock);
 }
 
 int vbe_rectangle(int contextId, uint16_t posX, uint16_t posY, uint16_t width, uint16_t height)
@@ -222,10 +244,6 @@ void vbe_init(multiboot_t *multiboot)
 		context->colorFront = 0x00FFFFFF;
 		context->colorBack = 0x00000000;
 		vbe_show_context(VBE_KERNEL_CONTEXT);
-		
-		// TEST
-		//vbe_rectangle(50, 100, 50, 100);
-		//vbe_render_string(200, 200, "This is a $5 test string?! a(x) = b[y]_3 + \"test\"...", 62);
 	}
 	else
 	{

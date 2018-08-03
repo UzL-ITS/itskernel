@@ -5,6 +5,7 @@
 #include <mm/mmio.h>
 #include <defs/types.h>
 #include <stdlib/stdlib.h>
+#include <trace/trace.h>
 
 #define IOAPIC_ID     0x00
 #define IOAPIC_VER    0x01
@@ -61,6 +62,7 @@ bool ioapic_init(ioapic_id_t id, uintptr_t addr, irq_t irq_base)
   apic->reg = (uint32_t *) virt_addr;
   apic->val = (uint32_t *) (virt_addr + 16);
   apic->irqs = ((ioapic_read(apic, IOAPIC_VER) >> 16) & 0xFF) + 1;
+  trace_printf("I/O APIC 0x%02x supports %d IRQs\n", id, apic->irqs); 
 
   list_add_tail(&ioapic_list, &apic->node);
   return true;

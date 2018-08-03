@@ -2,7 +2,8 @@
 ARCH := x86_64-pc-elf
 
 CC := $(ARCH)-gcc
-CFLAGS := -std=c1x -O3 -Wall -Wextra -pedantic -Wno-unused-parameter -I. -ffreestanding -mno-red-zone -mcmodel=kernel -mno-sse -mno-sse2 -mno-sse3 -mno-3dnow -mno-mmx -g
+# TODO add -O2 here, when debugging is finished
+CFLAGS := -std=c1x -Wall -Wextra -pedantic -Wno-unused-parameter -I. -ffreestanding -mno-red-zone -mcmodel=kernel -mno-sse -mno-sse2 -mno-sse3 -mno-3dnow -mno-mmx -g
 
 AS := nasm
 ASFLAGS := -f elf64 -g -F dwarf
