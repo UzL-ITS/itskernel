@@ -1,7 +1,7 @@
 ; Provides implementations for kernel syscalls, that are safely usable from C.
 
-[global testprintf]
-testprintf:
+[global sys_kputs]
+sys_kputs:
 	; Preserve R12 (is trashed by syscall handler)
 	push r12
 
@@ -14,9 +14,39 @@ testprintf:
 	; Restore R12
 	pop r12
 	ret
+	
+[global sys_exit]
+sys_exit:
+	; Preserve R12 (is trashed by syscall handler)
+	push r12
 
-[global next_message_type]
-next_message_type:
+	; Parameters are already in the correct registers
+	
+	; Do system call
+	mov rax, 1
+	syscall
+	
+	; Restore R12
+	pop r12
+	ret
+	
+[global sys_yield]
+sys_yield:
+	; Preserve R12 (is trashed by syscall handler)
+	push r12
+
+	; Parameters are already in the correct registers
+	
+	; Do system call
+	mov rax, 2
+	syscall
+	
+	; Restore R12
+	pop r12
+	ret
+
+[global sys_next_message_type]
+sys_next_message_type:
 	; Preserve R12 (is trashed by syscall handler)
 	push r12
 
@@ -30,8 +60,8 @@ next_message_type:
 	pop r12
 	ret
 
-[global next_message]
-next_message:
+[global sys_next_message]
+sys_next_message:
 	; Preserve R12 (is trashed by syscall handler)
 	push r12
 
@@ -45,8 +75,8 @@ next_message:
 	pop r12
 	ret
 
-[global set_displayed_process]
-set_displayed_process:
+[global sys_set_displayed_process]
+sys_set_displayed_process:
 	; Preserve R12 (is trashed by syscall handler)
 	push r12
 

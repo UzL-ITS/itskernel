@@ -1,6 +1,12 @@
 #pragma once
 
+/*
+ITS kernel messaging definitions.
+*/
+
+#include <stdbool.h>
 #include <stdint.h>
+#include <internal/keyboard/keycodes.h>
 
 // The different message types.
 typedef enum
@@ -26,7 +32,9 @@ typedef struct
 	// Message header data.
 	msg_header_t header;
 	
-	// The scan code of the pressed key.
-	// TODO use more reliable virtual key codes here
-	uint8_t scanCode;
+	// Shift modifier.
+	bool shiftModifier;
+	
+	// The code of the pressed key.
+	vkey_t keyCode;
 } msg_key_press_t;

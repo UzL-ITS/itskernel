@@ -1,6 +1,8 @@
 #pragma once
 
+#include <stdbool.h>
 #include <stdint.h>
+#include <io/keycodes.h>
 
 // The possible message destinations.
 typedef enum
@@ -37,16 +39,18 @@ typedef struct
 	// Message header data.
 	msg_header_t header;
 	
-	// The scan code of the pressed key.
-	// TODO use more reliable virtual key codes here
-	uint8_t scanCode;
+	// Shift modifier.
+	bool shiftModifier;
+	
+	// The code of the pressed key.
+	vkey_t keyCode;
 } msg_key_press_t;
 
 // Sends a message to the given process.
 void msg_send(msg_dest_t dest, msg_header_t *msg);
 
 // Creates a new key press message.
-msg_header_t *msg_create_keypress(uint8_t scanCode);
+msg_header_t *msg_create_keypress(vkey_t keyCode, bool shiftModifier);
 
 // Frees the memory of the given message.
 void msg_free(msg_header_t *msg);

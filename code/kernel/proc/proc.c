@@ -100,10 +100,10 @@ void proc_display(int contextId)
 	spin_lock(&processListLock);
 	{	
 		// Context #0 is the kernel itself
+		// Show its context, but keep the processDisplayed variable as it is, to be able to route keyboard inputs
 		if(contextId == 0)
 		{
 			vbe_show_context(0);
-			processDisplayed = 0;
 			spin_unlock(&processListLock);
 			return;
 		}

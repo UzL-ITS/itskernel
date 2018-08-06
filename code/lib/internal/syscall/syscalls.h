@@ -5,17 +5,23 @@ This file defines functions for all available system calls; implementations can 
 */
 
 #include <stdint.h>
-#include <sys/msg.h>
+#include <internal/syscall/msg.h>
 
-// TEST Prints the given string to kernel console.
-uint64_t testprintf(const char *str);
+// Prints the given string to kernel console. TODO remove, this is only for debugging
+uint64_t sys_kputs(const char *str);
+
+// TODO this does not do anything yet
+int sys_exit();
+
+// Switches to another thread, while the current one is e.g. waiting for messages (cooperative multitasking).
+int sys_yield();
 
 // Returns the type of the oldest non-processed message, if it exists.
-msg_type_t next_message_type();
+msg_type_t sys_next_message_type();
 
 // Returns and then deletes the oldest non-processed message, or 0 if there isn't any.
 // The parameter messageBuffer must provide enough space to fit the given message, thus next_message_type() should be called first to determine the correct message size.
-void next_message(msg_header_t *messageBuffer);
+void sys_next_message(msg_header_t *messageBuffer);
 
 // Changes the currently displayed process render context.
-void set_displayed_process(int contextId);
+void sys_set_displayed_process(int contextId);
