@@ -273,3 +273,4 @@ disk.img*
 code/kernel/itskernel
 code/kernel/itskernel.asm
 *.vdi
+*.a

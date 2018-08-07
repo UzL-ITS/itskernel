@@ -8,6 +8,7 @@ ITS kernel standard library I/O interface.
 #include <stdarg.h>
 #include <stdbool.h>
 #include <internal/keyboard/keyboard.h>
+#include <internal/terminal/terminal.h>
 
 #include <internal/syscall/syscalls.h>
 
@@ -15,7 +16,7 @@ ITS kernel standard library I/O interface.
 /* VARIABLES */
 
 // Default terminal line count.
-static const int defaultLineCount = 100;
+static const int defaultLineCount = 1000;
 
 // Determines whether initialization has completed.
 static bool initDone = false;
@@ -32,7 +33,11 @@ void io_init(int lines)
 	if(initDone)
 		return;
 	
+	// Initialize terminal
+	terminal_init(lines);
 	
+	// Initialized
+	initDone = true;
 }
 
 void printf(const char *format, ...)
@@ -46,7 +51,7 @@ void printf(const char *format, ...)
 	va_start(args, format);
 	
 	// TODO
-	sys_kputs(format);
+	terminal_puts(format);
 	
 	// Free variadic argument list
 	va_end(args);
@@ -65,6 +70,8 @@ char *getline()
 		char buf[24] = "Printable character:  \n\0";
 		if(key == VKEY_ENTER)
 			sys_kputs("LIB: ENTER key!\n");
+		else if(key_is_navigation_key(key))
+			terminal_handle_navigation_key(key);
 		else if(key_is_printable_character(key))
 		{
 			buf[21] = key_to_character(key, shiftPressed);

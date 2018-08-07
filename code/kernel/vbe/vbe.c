@@ -3,7 +3,6 @@
 #include <vbe/vbe.h>
 #include <mm/phy32.h>
 #include <mm/heap.h>
-#include <stdbool.h>
 #include <panic/panic.h>
 #include <lock/spinlock.h>
 
@@ -15,8 +14,14 @@ typedef struct
 	bool inUse;
 	
 	// Back buffers.
-	uint32_t *previousBuffer; // Holds the previous image
-	uint32_t *currentBuffer; // Holds the current image
+	uint32_t *previousBuffer; // Holds the previous image (copy of what is rendered on the screen)
+	uint32_t *currentBuffer; // Holds the current image, scrollable
+	
+	// Height of the scrollable buffer.
+	uint32_t currentBufferHeight;
+	
+	// Scroll position.
+	uint32_t scrollY;
 	
 	// Colors.
 	uint32_t colorFront;
@@ -29,8 +34,8 @@ static uint32_t colorFront;
 static uint32_t colorBack;
 
 // Render buffer.
-static uint16_t renderBufferWidth;
-static uint16_t renderBufferHeight;
+static uint32_t renderBufferWidth;
+static uint32_t renderBufferHeight;
 static uint32_t *renderBuffer;
 
 // Drawing contexts containing background buffers with the same dimensions as the render buffer,
@@ -44,6 +49,12 @@ int currentContext = 0;
 static uint32_t *previousBuffer; // Holds the previously rendered image
 static uint32_t *currentBuffer; // Holds the current image
 
+// Height of the scrollable buffer of the current drawing context.
+uint32_t currentBufferHeight;
+
+// Scroll position of the scrollable buffer of the current drawing context.
+uint32_t scrollY;
+
 // Determines whether context #0 buffers actually point to virtual memory.
 // This is needed since debug outputs might be printed before the memory manager is up.
 static bool buffersAllocated = false;
@@ -52,8 +63,9 @@ static bool buffersAllocated = false;
 static spinlock_t vbeContextLock = SPIN_UNLOCKED;
 
 
-// Blits the given rectangle to video memory.
-static void _vbe_blit_to_video_memory(int contextId, uint16_t posX, uint16_t posY, uint16_t width, uint16_t height)
+// Blits the given rectangle of the current buffer to video memory.
+// The coordinates are passed as absolute values (these are then translated by the scroll offset).
+static void _vbe_blit_to_video_memory(int contextId, uint32_t posX, uint32_t posY, uint32_t width, uint32_t height)
 {	
 	// Back buffers initialized yet?
 	if(!buffersAllocated)
@@ -69,15 +81,30 @@ static void _vbe_blit_to_video_memory(int contextId, uint16_t posX, uint16_t pos
 		return;
 	}
 	
-	// Run through rectangle pixels
-	uint16_t xMax = posX + width;
-	uint16_t yMax = posY + height;
-	for(uint16_t y = posY; y <= yMax; ++y)
+	// Check parameters
+	if(posY < scrollY || posY >= scrollY + renderBufferHeight)
 	{
-		uint32_t *pixelRenderBuffer = renderBuffer + y * renderBufferWidth + posX;
-		uint32_t *pixelCurrent = currentBuffer + y * renderBufferWidth + posX;
-		uint32_t *pixelPrevious = previousBuffer + y * renderBufferWidth + posX;
-		for(uint16_t x = posX; x <= xMax; ++x)
+		spin_unlock(&vbeContextLock);
+		return;
+	}
+	
+	// Calculate render buffer pixels indices
+	uint32_t renderBufferX = posX;
+	uint32_t renderBufferY = posY - scrollY;
+	uint32_t renderBufferXMax = renderBufferX + width;
+	uint32_t renderBufferYMax = renderBufferY + height;
+	if(renderBufferYMax > renderBufferHeight)
+		renderBufferYMax = renderBufferHeight;
+	
+	// Run through rectangle pixels
+	uint32_t xSteps = renderBufferXMax - renderBufferX;
+	uint32_t ySteps = renderBufferYMax - renderBufferY;
+	for(uint32_t y = 0; y < ySteps; ++y)
+	{
+		uint32_t *pixelRenderBuffer = renderBuffer + (renderBufferY + y) * renderBufferWidth + renderBufferX;
+		uint32_t *pixelCurrent = currentBuffer + (posY + y) * renderBufferWidth + renderBufferX;
+		uint32_t *pixelPrevious = previousBuffer + (renderBufferY + y) * renderBufferWidth + renderBufferX;
+		for(uint32_t x = 0; x < xSteps; ++x)
 		{
 			// Transfer pixel only when it was changed
 			uint32_t pixelCurrentVal = *pixelCurrent;
@@ -107,8 +134,10 @@ int vbe_create_context()
 			vbe_context_t *context = &contexts[i];
 	
 			// Initialize context
-			context->previousBuffer = (uint32_t *)heap_alloc(4 * renderBufferWidth * renderBufferWidth, VM_R | VM_W);
-			context->currentBuffer = (uint32_t *)heap_alloc(4 * renderBufferWidth * renderBufferWidth, VM_R | VM_W);
+			context->previousBuffer = (uint32_t *)heap_alloc(4 * renderBufferWidth * renderBufferHeight, VM_R | VM_W);
+			context->currentBuffer = (uint32_t *)heap_alloc(4 * renderBufferWidth * renderBufferHeight, VM_R | VM_W);
+			context->currentBufferHeight = renderBufferHeight;
+			context->scrollY = 0;
 			context->colorFront = 0x00FFFFFF;
 			context->colorBack = 0x00000000;
 			if(!context->previousBuffer || !context->currentBuffer)
@@ -142,6 +171,8 @@ void vbe_show_context(int contextId)
 		// Load context data
 		previousBuffer = context->previousBuffer;
 		currentBuffer = context->currentBuffer;
+		currentBufferHeight = context->currentBufferHeight;
+		scrollY = context->scrollY;
 		colorFront = context->colorFront;
 		colorBack = context->colorBack;
 		currentContext = contextId;
@@ -149,9 +180,10 @@ void vbe_show_context(int contextId)
 		if(buffersAllocated)
 		{
 			// Update "previous" buffer (it still contains the pixels when the drawing context was rendered last time), and redraw whole screen
-			for(int i = 0; i < renderBufferWidth * renderBufferHeight; ++i)
+			uint32_t *currentBufferScrolledPtr = currentBuffer + scrollY * renderBufferWidth;
+			for(uint32_t i = 0; i < renderBufferWidth * renderBufferHeight; ++i)
 			{
-				uint32_t pixel = currentBuffer[i];
+				uint32_t pixel = currentBufferScrolledPtr[i];
 				previousBuffer[i] = pixel;
 				renderBuffer[i] = pixel;
 			}
@@ -161,24 +193,24 @@ void vbe_show_context(int contextId)
 	spin_unlock(&vbeContextLock);
 }
 
-int vbe_rectangle(int contextId, uint16_t posX, uint16_t posY, uint16_t width, uint16_t height)
+int vbe_rectangle(int contextId, uint32_t posX, uint32_t posY, uint32_t width, uint32_t height)
 {
-	// Sanity checks for parameters
-	if(posX >= renderBufferWidth || posX + width > renderBufferWidth)
-		return -1;
-	if(posY >= renderBufferHeight || posY + height > renderBufferHeight)
-		return -2;
-	
 	// Get drawing context
 	vbe_context_t *context = &contexts[contextId];
 	
+	// Sanity checks for parameters
+	if(posX >= renderBufferWidth || posX + width > renderBufferWidth)
+		return -1;
+	if(posY >= context->currentBufferHeight || posY + height > context->currentBufferHeight)
+		return -2;
+	
 	// Draw rectangle
-	uint16_t xMax = posX + width;
-	uint16_t yMax = posY + height;
-	for(uint16_t y = posY; y <= yMax; ++y)
+	uint32_t xMax = posX + width;
+	uint32_t yMax = posY + height;
+	for(uint32_t y = posY; y < yMax; ++y)
 	{
 		uint32_t *pixel = context->currentBuffer + y * renderBufferWidth + posX;
-		for(uint16_t x = posX; x <= xMax; ++x)
+		for(uint32_t x = posX; x < xMax; ++x)
 		{
 			*pixel = context->colorFront;
 			++pixel;
@@ -188,18 +220,18 @@ int vbe_rectangle(int contextId, uint16_t posX, uint16_t posY, uint16_t width, u
 	return 0;
 }
 
-int vbe_render_char(int contextId, uint16_t posX, uint16_t posY, char c)
+int vbe_render_char(int contextId, uint32_t posX, uint32_t posY, char c)
 {
+	// Get drawing context
+	vbe_context_t *context = &contexts[contextId];
+	
 	// Sanity checks for parameters
 	if(posX >= renderBufferWidth)
 		return -1;
-	if(posY >= renderBufferHeight)
+	if(posY >= context->currentBufferHeight)
 		return -2;
 	if(c < ' ' || c > '~')
 		return -3;
-	
-	// Get drawing context
-	vbe_context_t *context = &contexts[contextId];
 	
 	// Get char array index
 	int charIndex = c - ' ';
@@ -241,6 +273,8 @@ void vbe_init(multiboot_t *multiboot)
 		context->inUse = true;
 		context->previousBuffer = renderBuffer;
 		context->currentBuffer = renderBuffer;
+		context->currentBufferHeight = renderBufferHeight;
+		context->scrollY = 0;
 		context->colorFront = 0x00FFFFFF;
 		context->colorBack = 0x00000000;
 		vbe_show_context(VBE_KERNEL_CONTEXT);
@@ -261,13 +295,13 @@ void vbe_init(multiboot_t *multiboot)
 void vbe_init_back_buffers()
 {
 	// Get memory for both buffers
-	contexts[VBE_KERNEL_CONTEXT].previousBuffer = (uint32_t *)heap_alloc(4 * renderBufferWidth * renderBufferWidth, VM_R | VM_W);
-	contexts[VBE_KERNEL_CONTEXT].currentBuffer = (uint32_t *)heap_alloc(4 * renderBufferWidth * renderBufferWidth, VM_R | VM_W);
+	contexts[VBE_KERNEL_CONTEXT].previousBuffer = (uint32_t *)heap_alloc(4 * renderBufferWidth * renderBufferHeight, VM_R | VM_W);
+	contexts[VBE_KERNEL_CONTEXT].currentBuffer = (uint32_t *)heap_alloc(4 * renderBufferWidth * renderBufferHeight, VM_R | VM_W);
 	if(!contexts[VBE_KERNEL_CONTEXT].previousBuffer || !contexts[VBE_KERNEL_CONTEXT].currentBuffer)
-		panic("Could not reserve %d bytes of memory for VBE back buffer, heap allocator broken?", 4 * renderBufferWidth * renderBufferWidth);
+		panic("Could not reserve %d bytes of memory for VBE back buffer, heap allocator broken?", 4 * renderBufferWidth * renderBufferHeight);
 	
 	// Copy whole current video memory buffer to back buffers (so we don't lose previous debug outputs)
-	for(int i = 0; i < renderBufferWidth * renderBufferHeight; ++i)
+	for(uint32_t i = 0; i < renderBufferWidth * renderBufferHeight; ++i)
 	{
 		uint32_t currentPixel = renderBuffer[i];
 		contexts[VBE_KERNEL_CONTEXT].previousBuffer[i] = currentPixel;
@@ -279,12 +313,12 @@ void vbe_init_back_buffers()
 	vbe_show_context(VBE_KERNEL_CONTEXT);
 }
 
-uint16_t vbe_get_screen_width()
+uint32_t vbe_get_screen_width()
 {
 	return renderBufferWidth;
 }
 
-uint16_t vbe_get_screen_height()
+uint32_t vbe_get_screen_height()
 {
 	return renderBufferHeight;
 }
@@ -298,8 +332,12 @@ void vbe_set_front_color(int contextId, uint8_t r, uint8_t g, uint8_t b)
 	context->colorFront = ((uint32_t)r << 16) | ((uint16_t)g << 8) | b;
 	
 	// Current context? => Update local color too
-	if(contextId == currentContext)
-		colorFront = context->colorFront;
+	spin_lock(&vbeContextLock);
+	{
+		if(contextId == currentContext)
+			colorFront = context->colorFront;
+	}
+	spin_unlock(&vbeContextLock);
 }
 
 void vbe_set_back_color(int contextId, uint8_t r, uint8_t g, uint8_t b)
@@ -311,6 +349,85 @@ void vbe_set_back_color(int contextId, uint8_t r, uint8_t g, uint8_t b)
 	context->colorBack = ((uint32_t)r << 16) | ((uint16_t)g << 8) | b;
 	
 	// Current context? => Update local color too
-	if(contextId == currentContext)
-		colorBack = context->colorBack;
+	spin_lock(&vbeContextLock);
+	{
+		if(contextId == currentContext)
+			colorBack = context->colorBack;
+	}
+	spin_unlock(&vbeContextLock);
+}
+
+bool vbe_allocate_scroll_buffer(int contextId, uint32_t height)
+{
+	// The kernel context is fixed
+	if(contextId == VBE_KERNEL_CONTEXT)
+		return false;
+	
+	spin_lock(&vbeContextLock);
+	
+	// Get drawing context
+	vbe_context_t *context = &contexts[contextId];
+	
+	// Try to allocate new buffer first
+	uint32_t *newBuffer = (uint32_t *)heap_alloc(4 * renderBufferWidth * height, VM_R | VM_W);
+	if(!newBuffer)
+	{
+		// Probably not enough memory available
+		spin_unlock(&vbeContextLock);
+		return false;
+	}
+	
+	// Free old buffer and assign new one
+	heap_free(context->currentBuffer);
+	context->currentBuffer = newBuffer;
+	context->currentBufferHeight = height;
+	context->scrollY = 0;
+	
+	// If this is the current context, update it too
+	if(currentContext == contextId)
+	{
+		currentBuffer = newBuffer;
+		currentBufferHeight = height;
+		scrollY = 0;
+	}
+	
+	spin_unlock(&vbeContextLock);
+	return true;
+}
+
+void vbe_set_scroll_position(int contextId, uint32_t y)
+{
+	// Get drawing context
+	vbe_context_t *context = &contexts[contextId];
+	
+	// Check parameters
+	if(y >= context->currentBufferHeight - renderBufferHeight)
+		y = context->currentBufferHeight - renderBufferHeight - 1;
+	
+	// Update position
+	context->scrollY = y;
+	
+	// If current context, update position there too
+	spin_lock(&vbeContextLock);
+	{
+		if(contextId == currentContext)
+			scrollY = y;
+	}
+	spin_unlock(&vbeContextLock);
+
+	// Redraw, if current context
+	_vbe_blit_to_video_memory(contextId, 0, y, renderBufferWidth, renderBufferHeight);
+}
+
+void vbe_clear(int contextId)
+{
+	// Get drawing context
+	vbe_context_t *context = &contexts[contextId];
+	
+	// Clear whole buffer
+	for(uint32_t i = 0; i < renderBufferWidth * context->currentBufferHeight; ++i)
+		context->currentBuffer[i] = context->colorBack;
+	
+	// Redraw, if current context
+	_vbe_blit_to_video_memory(contextId, 0, context->scrollY, renderBufferWidth, renderBufferHeight);
 }

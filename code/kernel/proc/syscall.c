@@ -23,15 +23,24 @@ uintptr_t syscall_table[] =
 	/*  2 */ (uintptr_t)&sys_yield,
 	/*  3 */ (uintptr_t)&sys_next_message_type,
 	/*  4 */ (uintptr_t)&sys_next_message,
-	/*  5 */ (uintptr_t)&sys_set_displayed_process
+	/*  5 */ (uintptr_t)&sys_set_displayed_process,
+	/*  6 */ (uintptr_t)&sys_vbe_rectangle,
+	/*  7 */ (uintptr_t)&sys_vbe_render_char,
+	/*  8 */ (uintptr_t)&sys_vbe_get_screen_width,
+	/*  9 */ (uintptr_t)&sys_vbe_get_screen_height,
+	/* 10 */ (uintptr_t)&sys_vbe_set_front_color,
+	/* 11 */ (uintptr_t)&sys_vbe_set_back_color,
+	/* 12 */ (uintptr_t)&sys_vbe_allocate_scroll_buffer,
+	/* 13 */ (uintptr_t)&sys_vbe_set_scroll_position,
+	/* 14 */ (uintptr_t)&sys_vbe_clear,
 };
 uint64_t syscall_table_size = sizeof(syscall_table) / sizeof(*syscall_table);
 
 void syscall_init(void)
 {
   /* unset SYSCALL_DIRECT bit on syscalls which may perform a context switch */
-  syscall_table[SYS_EXIT]  &= ~SYSCALL_DIRECT;
-  syscall_table[SYS_YIELD] &= ~SYSCALL_DIRECT;
+  syscall_table[1]  &= ~SYSCALL_DIRECT;
+  syscall_table[2] &= ~SYSCALL_DIRECT;
 
   /* set the SYSCALL and SYSRET selectors */
   uint64_t star = 0;

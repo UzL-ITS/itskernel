@@ -40,6 +40,11 @@ bool key_is_printable_character(vkey_t keyCode)
 		|| (VKEY_KPMULTIPLY <= keyCode && keyCode <= VKEY_KP9);
 }
 
+bool key_is_navigation_key(vkey_t keyCode)
+{
+	return (VKEY_CURSORUP <= keyCode && keyCode <= VKEY_END);
+}
+
 char key_to_character(vkey_t keyCode, bool shiftPressed)
 {
 	// Calculate index for key code conversion table and return resulting character

@@ -25,3 +25,30 @@ void sys_next_message(msg_header_t *messageBuffer);
 
 // Changes the currently displayed process render context.
 void sys_set_displayed_process(int contextId);
+
+// Draws a rectangle at the specified position with the given dimensions.
+int sys_vbe_rectangle(uint32_t posX, uint32_t posY, uint32_t width, uint32_t height);
+
+// Renders the given character at the given render buffer position. Currently only ASCII characters (' ' ... '~') are supported.
+int sys_vbe_render_char(uint32_t posX, uint32_t posY, char c);
+
+// Returns the width of the render buffer.
+uint32_t sys_vbe_get_screen_width();
+
+// Returns the height of the render buffer.
+uint32_t sys_vbe_get_screen_height();
+
+// Sets the current foreground color.
+void sys_vbe_set_front_color(uint8_t r, uint8_t g, uint8_t b);
+
+// Sets the current background color.
+void sys_vbe_set_back_color(uint8_t r, uint8_t g, uint8_t b);
+
+// Allocates a scrollable back buffer, and returns true on success.
+bool sys_vbe_allocate_scroll_buffer(uint32_t height);
+
+// Scrolls the buffer to the specified position.
+void sys_vbe_set_scroll_position(uint32_t y);
+
+// Clears the buffer with the current background color.
+void sys_vbe_clear();

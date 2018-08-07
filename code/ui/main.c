@@ -19,6 +19,9 @@ static void handle_window_switch(vkey_t keyCode, bool shiftPressed)
 
 int main()
 {
+	// Output banner
+	printf("--- ITS Micro Kernel :: UI PROCESS ---\n");
+	
 	// Install handler for render context switch
 	for(int c = VKEY_F1; c <= VKEY_F12; ++c)
 		register_keypress_handler(c, &handle_window_switch);

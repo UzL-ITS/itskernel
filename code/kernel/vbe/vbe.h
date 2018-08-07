@@ -2,6 +2,7 @@
 #ifndef _VBE_H
 #define _VBE_H
 
+#include <stdbool.h>
 #include <init/multiboot.h>
 #include <vbe/res/font.h>
 
@@ -22,21 +23,30 @@ int vbe_create_context();
 void vbe_show_context(int contextId);
 
 // Draws a rectangle at the specified position with the given dimensions.
-int vbe_rectangle(int contextId, uint16_t posX, uint16_t posY, uint16_t width, uint16_t height);
+int vbe_rectangle(int contextId, uint32_t posX, uint32_t posY, uint32_t width, uint32_t height);
 
 // Renders the given character at the given render buffer position. Currently only ASCII characters (' ' ... '~') are supported.
-int vbe_render_char(int contextId, uint16_t posX, uint16_t posY, char c);
+int vbe_render_char(int contextId, uint32_t posX, uint32_t posY, char c);
 
 // Returns the width of the render buffer.
-uint16_t vbe_get_screen_width();
+uint32_t vbe_get_screen_width();
 
 // Returns the height of the render buffer.
-uint16_t vbe_get_screen_height();
+uint32_t vbe_get_screen_height();
 
 // Sets the foreground color.
 void vbe_set_front_color(int contextId, uint8_t r, uint8_t g, uint8_t b);
 
 // Sets the background color.
 void vbe_set_back_color(int contextId, uint8_t r, uint8_t g, uint8_t b);
+
+// Allocates a scrollable back buffer for the given context, and returns true on success.
+bool vbe_allocate_scroll_buffer(int contextId, uint32_t height);
+
+// Scrolls the buffer of the given context to the specified position.
+void vbe_set_scroll_position(int contextId, uint32_t y);
+
+// Clears the buffer of the given context with its current background color.
+void vbe_clear(int contextId);
 
 #endif

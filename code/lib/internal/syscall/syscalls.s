@@ -1,91 +1,61 @@
 ; Provides implementations for kernel syscalls, that are safely usable from C.
 
-[global sys_kputs]
-sys_kputs:
+; Creates a system call wrapper routine for functions with 0 to 3 arguments.
+; Parameters:
+;     - System call function name
+;     - System call number
+%macro syscallwrapper 2
+[global %1]
+%1:
 	; Preserve R12 (is trashed by syscall handler)
 	push r12
 
-	; Parameters are already in the correct registers
+	; Parameters #0, #1, #2 are already in the correct registers
 	
 	; Do system call
-	mov rax, 0
+	mov rax, %2
 	syscall
 	
 	; Restore R12
 	pop r12
 	ret
-	
-[global sys_exit]
-sys_exit:
+%endmacro
+
+; Creates a system call wrapper routine for functions with 4 arguments.
+; Parameters:
+;     - System call function name
+;     - System call number
+%macro syscallwrapper4 2
+[global %1]
+%1:
 	; Preserve R12 (is trashed by syscall handler)
 	push r12
 
-	; Parameters are already in the correct registers
+	; Parameters #0, #1, #2 are already in the correct registers
+	; Parameter #3 must be copied to R10, since RCX is overwritten by SYSCALL
+	mov r10, rcx
 	
 	; Do system call
-	mov rax, 1
+	mov rax, %2
 	syscall
 	
 	; Restore R12
 	pop r12
 	ret
-	
-[global sys_yield]
-sys_yield:
-	; Preserve R12 (is trashed by syscall handler)
-	push r12
+%endmacro
 
-	; Parameters are already in the correct registers
-	
-	; Do system call
-	mov rax, 2
-	syscall
-	
-	; Restore R12
-	pop r12
-	ret
-
-[global sys_next_message_type]
-sys_next_message_type:
-	; Preserve R12 (is trashed by syscall handler)
-	push r12
-
-	; Parameters are already in the correct registers
-	
-	; Do system call
-	mov rax, 3
-	syscall
-	
-	; Restore R12
-	pop r12
-	ret
-
-[global sys_next_message]
-sys_next_message:
-	; Preserve R12 (is trashed by syscall handler)
-	push r12
-
-	; Parameters are already in the correct registers
-	
-	; Do system call
-	mov rax, 4
-	syscall
-	
-	; Restore R12
-	pop r12
-	ret
-
-[global sys_set_displayed_process]
-sys_set_displayed_process:
-	; Preserve R12 (is trashed by syscall handler)
-	push r12
-
-	; Parameters are already in the correct registers
-	
-	; Do system call
-	mov rax, 5
-	syscall
-	
-	; Restore R12
-	pop r12
-	ret
+syscallwrapper sys_kputs, 0
+syscallwrapper sys_exit, 1
+syscallwrapper sys_yield, 2
+syscallwrapper sys_next_message_type, 3
+syscallwrapper sys_next_message, 4
+syscallwrapper sys_set_displayed_process, 5
+syscallwrapper4 sys_vbe_rectangle, 6
+syscallwrapper sys_vbe_render_char, 7
+syscallwrapper sys_vbe_get_screen_width, 8
+syscallwrapper sys_vbe_get_screen_height, 9
+syscallwrapper sys_vbe_set_front_color, 10
+syscallwrapper sys_vbe_set_back_color, 11
+syscallwrapper sys_vbe_allocate_scroll_buffer, 12
+syscallwrapper sys_vbe_set_scroll_position, 13
+syscallwrapper sys_vbe_clear, 14

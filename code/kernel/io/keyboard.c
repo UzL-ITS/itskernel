@@ -17,6 +17,9 @@ Keyboard driver.
 // Currently pressed keys.
 static bool pressedKeys[VKEY_MAX_VALUE + 1] = { false };
 
+// Code E0 in last interrupt?
+static bool receivedE0 = false;
+
 static void _handle_key_press(cpu_state_t *state)
 {
 	// Retrieve scan code
@@ -30,7 +33,21 @@ static void _handle_key_press(cpu_state_t *state)
 	bool pressed = true;
 	if(scanCode == 0xE0)
 	{
-		// TODO
+		// Set flag
+		receivedE0 = true;
+		return;
+	}
+	else if(receivedE0)
+	{
+		// Reset flag
+		receivedE0 = false;
+		
+		// Retrieve virtual key code
+		keyCode = e0ScanCodeConversionTable[scanCode & 0x7F];
+		
+		// Key release?
+		if(scanCode & 0x80)
+			pressed = false;
 	}
 	else
 	{

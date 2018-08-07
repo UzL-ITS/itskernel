@@ -13,8 +13,10 @@ ITS kernel standard library key code lookup.
 // TODO UTF-8 is not supported
 char keyCodeToAsciiConversionTable[] = 
 {
+	// Invalid key.
 	'\0',	'\0',
 	
+	// Alphabetic keys.
 	'a',    'A',
 	'b',    'B',
 	'c',    'C',
@@ -42,6 +44,7 @@ char keyCodeToAsciiConversionTable[] =
 	'z',    'Z',
 	'y',    'Y',
 	
+	// Numeric keys (on top of the alphabetic ones).
 	'0',    '=',
 	'1',    '!',
 	'2',    '"',
@@ -53,6 +56,7 @@ char keyCodeToAsciiConversionTable[] =
 	'8',    '(',
 	'9',    ')',
 	
+	// Fn keys.
 	'\0',	'\0',
 	'\0',	'\0',
 	'\0',	'\0',
@@ -66,6 +70,12 @@ char keyCodeToAsciiConversionTable[] =
 	'\0',	'\0',
 	'\0',	'\0',
 	
+	// Various control keys.
+	'\0',	'\0',
+	'\0',	'\0',
+	'\0',	'\0',
+	'\0',	'\0',
+	'\0',	'\0',
 	'\0',	'\0',
 	'\0',	'\0',
 	'\0',	'\0',
@@ -78,7 +88,10 @@ char keyCodeToAsciiConversionTable[] =
 	'\t',	'\0',
 	'\0',	'\0',
 	'\0',	'\0',
+	'\0',	'\0',
+	'\0',	'\0',
 	
+	// Some special characters.
 	'o',	'O',
 	',',	';',
 	'.',	':',
@@ -91,7 +104,9 @@ char keyCodeToAsciiConversionTable[] =
 	'u',	'U',
 	'+',	'*',
 	
+	// Key pad.
 	'*',	'\0',
+	'/',	'\0',
 	'-',	'\0',
 	'+',	'\0',
 	',',	'\0',
@@ -105,4 +120,30 @@ char keyCodeToAsciiConversionTable[] =
 	'7',	'\0',
 	'8',	'\0',
 	'9',	'\0',
+	'\0',	'\0',
+	
+	// Navigation keys.
+	'\0',	'\0',
+	'\0',	'\0',
+	'\0',	'\0',
+	'\0',	'\0',
+	'\0',	'\0',
+	'\0',	'\0',
+	'\0',	'\0',
+	'\0',	'\0',
+	
+	// Multimedia keys.
+	'\0',	'\0',
+	'\0',	'\0',
+	'\0',	'\0',
+	'\0',	'\0',
+	'\0',	'\0',
+	'\0',	'\0',
+	'\0',	'\0',
+	'\0',	'\0',
+	
+	// Power keys.
+	'\0',	'\0',
+	'\0',	'\0',
+	'\0',	'\0'
 };
