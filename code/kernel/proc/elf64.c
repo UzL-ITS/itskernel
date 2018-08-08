@@ -3,6 +3,7 @@
 #include <mm/align.h>
 #include <mm/seg.h>
 #include <stdlib/string.h>
+#include <trace/trace.h>
 
 static bool elf64_ehdr_valid(elf64_ehdr_t *ehdr)
 {
@@ -39,6 +40,7 @@ static bool elf64_ehdr_valid(elf64_ehdr_t *ehdr)
   return true;
 }
 
+#include <panic/panic.h>
 bool elf64_load(elf64_ehdr_t *elf, size_t size)
 {
   if (!elf64_ehdr_valid(elf))
@@ -62,7 +64,7 @@ bool elf64_load(elf64_ehdr_t *elf, size_t size)
       flags |= VM_X;
 
     /* compute segment address and length */
-    uintptr_t seg_addr = phdr->p_vaddr - phdr->p_offset;
+    uintptr_t seg_addr = phdr->p_vaddr;// - phdr->p_offset;
     uintptr_t seg_len = PAGE_ALIGN(phdr->p_memsz);
 
     /* check if start of segment is page aligned */
@@ -72,14 +74,15 @@ bool elf64_load(elf64_ehdr_t *elf, size_t size)
     /* allocate segment on user heap */
     if (!seg_alloc_at((void *) seg_addr, seg_len, flags))
       goto rollback;
-
-    /* copy data from the ELF file into memory */
+	
+    // Copy sections from the ELF file into segment memory
     uintptr_t file_addr = (uintptr_t) elf + phdr->p_offset;
     memcpy((void *) phdr->p_vaddr, (void *) file_addr, phdr->p_filesz);
 
     /* reset any remaining memory in the section */
     memclr((void *) (phdr->p_vaddr + phdr->p_filesz), phdr->p_memsz - phdr->p_filesz);
   }
+  
   return true;
 
 rollback:

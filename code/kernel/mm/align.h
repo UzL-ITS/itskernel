@@ -2,6 +2,9 @@
 #ifndef _MM_ALIGN_H
 #define _MM_ALIGN_H
 
+// PAGE_ALIGN: Find the lowest page-aligned address >= x
+// PAGE_ALIGN_REVERSE: Find the highest page-aligned address <= x
+
 #define PAGE_ALIGN(x) (((x) + 0xFFF) & 0xFFFFFFFFFFFFF000)
 #define PAGE_ALIGN_REVERSE(x) ((x) & 0xFFFFFFFFFFFFF000)
 
