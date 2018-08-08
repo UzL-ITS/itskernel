@@ -8,7 +8,7 @@ AS := nasm
 ASFLAGS := -f elf64 -g -F dwarf
 
 LD := $(ARCH)-ld
-LDFLAGS := -z max-page-size=0x1000 -L ../lib -l itskernel
+LDFLAGS := -z max-page-size=0x1000 -L ../lib -l itskernel -Tlinker.lds
 
 AR := $(ARCH)-ar
 ARFLAGS := 

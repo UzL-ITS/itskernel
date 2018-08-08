@@ -9,14 +9,10 @@ ITS kernel standard library I/O interface.
 #include <stdbool.h>
 #include <internal/keyboard/keyboard.h>
 #include <internal/terminal/terminal.h>
-
-#include <internal/syscall/syscalls.h>
+#include <string.h>
 
 
 /* VARIABLES */
-
-// Default terminal line count.
-static const int defaultLineCount = 1000;
 
 // Determines whether initialization has completed.
 static bool initDone = false;
@@ -40,50 +36,26 @@ void io_init(int lines)
 	initDone = true;
 }
 
-void printf(const char *format, ...)
-{
-	// Initialized?
-	if(!initDone)
-		io_init(defaultLineCount);
-	
-	// Get variadic argument list
-	va_list args;
-	va_start(args, format);
-	
-	// TODO
-	terminal_puts(format);
-	
-	// Free variadic argument list
-	va_end(args);
-}
-
 char *getline()
 {
 	// Initialized?
 	if(!initDone)
-		io_init(defaultLineCount);
+		return 0;
 	
 	while(true)
 	{
 		bool shiftPressed;
 		vkey_t key = receive_keypress(&shiftPressed);
-		char buf[24] = "Printable character:  \n\0";
-		if(key == VKEY_ENTER)
-			sys_kputs("LIB: ENTER key!\n");
-		else if(key_is_navigation_key(key))
+		if(key_is_navigation_key(key))
 			terminal_handle_navigation_key(key);
 		else if(key_is_printable_character(key))
 		{
-			buf[21] = key_to_character(key, shiftPressed);
-			sys_kputs(buf);
+			// TODO
 		}
 		else if(keypressHandlers[key] != 0)
 		{
-			sys_kputs("LIB: Key handler called.\n");
 			keypressHandlers[key](key, shiftPressed);
 		}
-		else
-			sys_kputs("LIB: Ignored key.\n");
 	}
 	return 0;
 }

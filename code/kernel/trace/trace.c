@@ -318,7 +318,7 @@ void trace_vprintf(const char *fmt, va_list args)
             }
 
             /* add a plus or a space if the number is not negative */
-            if (((flags & FLAG_PLUS) || (flags & FLAG_SPACE)) && buf[0] != '-' && c != 'u' && base != 6)
+            if (((flags & FLAG_PLUS) || (flags & FLAG_SPACE)) && buf[0] != '-' && c != 'u' && base != 16)
             {
               _trace_putch((flags & FLAG_PLUS) ? '+' : ' ');
               len++;

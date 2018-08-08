@@ -6,7 +6,6 @@ ITS kernel standard library terminal implementation.
 
 /* INCLUDES */
 
-#include <stdbool.h>
 #include <internal/keyboard/keycodes.h>
 
 

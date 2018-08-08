@@ -31,6 +31,7 @@ ITS kernel standard library terminal implementation.
 
 // Colors.
 #define COLOR_BACKGROUND 0,0,0
+#define COLOR_BACKGROUND_WRAP_AROUND 20,20,20
 #define COLOR_FOREGROUND 255,255,255
 #define COLOR_SCROLLBAR_BACKGROUND 60,60,60
 #define COLOR_SCROLLBAR_FOREGROUND 200,200,200
@@ -61,6 +62,9 @@ static uint32_t terminalRowCount;
 
 // Signals whether a wrap around has occured.
 static bool wrapAroundOccured = false;
+
+// Signals the current wrap around color.
+static bool wrapAroundColor = false;
 
 
 /* FUNCTIONS */
@@ -117,7 +121,6 @@ void terminal_init(int lines)
 	draw_scrollbar();
 }
 
-//static uint32_t index = 0;
 void terminal_putc(char c)
 {
 	// Act depending on character type, consider control chars
@@ -187,13 +190,17 @@ void terminal_putc(char c)
 	{
 		currentRow = 0;
 		wrapAroundOccured = true;
+		wrapAroundColor = !wrapAroundColor;
 	}
 
 	// New row? -> If wrap around has occured, clear the current and the next row
 	if(currentColumn == 0 && wrapAroundOccured)
 	{
 		// Set clear color
-		sys_vbe_set_front_color(COLOR_BACKGROUND);
+		if(wrapAroundColor)
+			sys_vbe_set_front_color(COLOR_BACKGROUND_WRAP_AROUND);
+		else
+			sys_vbe_set_front_color(COLOR_BACKGROUND);
 
 		// Clear current row
 		sys_vbe_rectangle(TERMINAL_PADDING, TERMINAL_PADDING + currentRow * ROW_HEIGHT, terminalColumnCount * COLUMN_WIDTH, ROW_HEIGHT);
