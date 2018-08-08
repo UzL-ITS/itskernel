@@ -64,6 +64,7 @@ void vga_putch(char c)
 
 			// Fall through
 		}
+		__attribute__ ((fallthrough));
 		case '\r':
 		{
 			col = 0;

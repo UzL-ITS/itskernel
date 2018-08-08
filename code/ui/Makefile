@@ -2,7 +2,7 @@
 ARCH := x86_64-pc-elf
 
 CC := $(ARCH)-gcc
-CFLAGS := -std=c1x -O3 -Wall -Wextra -pedantic -Wno-unused-parameter -I. -I../lib -ffreestanding -mno-red-zone -mcmodel=kernel -mno-sse -mno-sse2 -mno-sse3 -mno-3dnow -mno-mmx -g
+CFLAGS := -std=c1x -O3 -Wall -Wextra -Wno-unused-parameter -pedantic -I. -I../lib -ffreestanding -mno-red-zone -mcmodel=small -mno-sse -mno-sse2 -mno-sse3 -mno-3dnow -mno-mmx -g
 
 AS := nasm
 ASFLAGS := -f elf64 -g -F dwarf

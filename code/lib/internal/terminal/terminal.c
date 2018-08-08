@@ -18,12 +18,14 @@ ITS kernel standard library terminal implementation.
 #define ROW_HEIGHT (VBE_FONT_CHARACTER_HEIGHT+2)
 #define COLUMN_WIDTH VBE_FONT_CHARACTER_WIDTH
 
+// Terminal inner padding (distance to border of render area).
+#define TERMINAL_PADDING 2
+
 // Width of a tab character.
 #define TAB_WIDTH 4
 
 // Size of the scrollbar.
 #define SCROLLBAR_WIDTH 8
-#define SCROLLBAR_MARGIN 2
 #define SCROLLBAR_BAR_MIN_HEIGHT 4
 #define SCROLLBAR_ARROW_KEY_OFFSET 20
 
@@ -54,8 +56,8 @@ static uint32_t scrollYMax = 0;
 static uint32_t scrollbarBarHeight = 0;
 
 // The dimensions of the terminal typesetting area (in characters).
-static uint16_t terminalColumnCount;
-static uint16_t terminalRowCount;
+static uint32_t terminalColumnCount;
+static uint32_t terminalRowCount;
 
 // Signals whether a wrap around has occured.
 static bool wrapAroundOccured = false;
@@ -90,11 +92,11 @@ void terminal_init(int lines)
 	renderWindowHeight = sys_vbe_get_screen_height();
 	
 	// Store terminal typeset area size
-	terminalColumnCount = (renderWindowWidth - SCROLLBAR_MARGIN - SCROLLBAR_WIDTH) / COLUMN_WIDTH;
+	terminalColumnCount = (renderWindowWidth - TERMINAL_PADDING - TERMINAL_PADDING - SCROLLBAR_WIDTH) / COLUMN_WIDTH;
 	terminalRowCount = lines;
 	
 	// Create scrollable buffer
-	terminalHeight = lines * ROW_HEIGHT;
+	terminalHeight = lines * ROW_HEIGHT + 2 * TERMINAL_PADDING;
 	if(!sys_vbe_allocate_scroll_buffer(terminalHeight))
 	{
 		// Print error to kernel console
@@ -107,23 +109,6 @@ void terminal_init(int lines)
 	sys_vbe_set_back_color(COLOR_BACKGROUND);
 	sys_vbe_clear();
 	
-	// TEST
-	for(int i = 0; i < lines; ++i)
-	{
-		uint32_t y = i * ROW_HEIGHT;
-		uint32_t x = 4;
-		uint32_t j = i;
-		while(j != 0)
-		{
-			if(j & 1)
-				sys_vbe_render_char(x, y, '1');
-			else
-				sys_vbe_render_char(x, y, '0');
-			j >>= 1;
-			x += COLUMN_WIDTH;
-		}
-	}
-	
 	// Draw scrollbar for current display
 	scrollbarBarHeight = (renderWindowHeight * renderWindowHeight) / terminalHeight;
 	if(scrollbarBarHeight < SCROLLBAR_BAR_MIN_HEIGHT)
@@ -135,12 +120,8 @@ void terminal_init(int lines)
 //static uint32_t index = 0;
 void terminal_putc(char c)
 {
-	/*int col = index % terminalRowCount;
-	int row = index / terminalColumnCount;
-	sys_vbe_render_char(col * COLUMN_WIDTH, row * ROW_HEIGHT, c);
-	++index;*/
 	// Act depending on character type, consider control chars
-	switch (c)
+	switch(c)
 	{
 		case '\0':
 		case '\f':
@@ -153,12 +134,13 @@ void terminal_putc(char c)
 
 		case '\n':
 		{
+			// Next row
 			++currentRow;
-
-			// Fall through
 		}
+		__attribute__ ((fallthrough));
 		case '\r':
 		{
+			// Go to line start
 			currentColumn = 0;
 			break;
 		}
@@ -178,7 +160,7 @@ void terminal_putc(char c)
 			if(currentColumn > 0)
 			{
 				--currentColumn;
-				sys_vbe_render_char(currentColumn * COLUMN_WIDTH, currentRow * ROW_HEIGHT, ' ');
+				sys_vbe_render_char(TERMINAL_PADDING + currentColumn * COLUMN_WIDTH, TERMINAL_PADDING + currentRow * ROW_HEIGHT, ' ');
 			}
 			break;
 		}
@@ -186,7 +168,7 @@ void terminal_putc(char c)
 		default:
 		{
 			// Just draw the character
-			sys_vbe_render_char(currentColumn * COLUMN_WIDTH, currentRow * ROW_HEIGHT, c);
+			sys_vbe_render_char(TERMINAL_PADDING + currentColumn * COLUMN_WIDTH, TERMINAL_PADDING + currentRow * ROW_HEIGHT, c);
 			++currentColumn;
 			break;
 		}
@@ -214,11 +196,11 @@ void terminal_putc(char c)
 		sys_vbe_set_front_color(COLOR_BACKGROUND);
 
 		// Clear current row
-		sys_vbe_rectangle(0, currentRow * ROW_HEIGHT, terminalColumnCount * COLUMN_WIDTH, ROW_HEIGHT);
+		sys_vbe_rectangle(TERMINAL_PADDING, TERMINAL_PADDING + currentRow * ROW_HEIGHT, terminalColumnCount * COLUMN_WIDTH, ROW_HEIGHT);
 
 		// Clear next row, if there is any
-		if(currentRow < terminalRowCount - 1)
-			sys_vbe_rectangle(0, (currentRow + 1) * ROW_HEIGHT, terminalColumnCount * COLUMN_WIDTH, ROW_HEIGHT);
+		if(currentRow + 1 < terminalRowCount)
+			sys_vbe_rectangle(TERMINAL_PADDING, TERMINAL_PADDING + (currentRow + 1) * ROW_HEIGHT, terminalColumnCount * COLUMN_WIDTH, ROW_HEIGHT);
 
 		// Reset color
 		sys_vbe_set_front_color(COLOR_FOREGROUND);
