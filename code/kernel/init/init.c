@@ -31,6 +31,7 @@
 #include <stdbool.h>
 #include <vbe/vbe.h>
 #include <io/keyboard.h>
+#include <pci/pci.h>
 
 static void print_banner(void)
 {
@@ -151,7 +152,10 @@ noreturn void init(uint32_t magic, multiboot_t *multiboot)
 	panic_init();
 	fault_init();
 	tlb_init();
-
+	
+	// Scan PCI devices
+	pci_init();
+while(1);
 	/* set up idle process, this must be done before we are in SMP mode */
 	idle_init();
 

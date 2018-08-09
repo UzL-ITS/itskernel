@@ -4,6 +4,7 @@
 #include <acpi/rsdt.h>
 #include <acpi/xsdt.h>
 #include <acpi/madt.h>
+#include <acpi/mcfg.h>
 #include <mm/mmio.h>
 #include <init/cmdline.h>
 #include <panic/panic.h>
@@ -29,30 +30,40 @@ static void acpi_unmap(acpi_header_t *table)
 
 static void acpi_scan_table(uintptr_t addr)
 {
-  /* map the table into virtual memory */
-  acpi_header_t *table = acpi_map(addr); 
-  if (!table)
-    panic("couldn't map table");
+	/* map the table into virtual memory */
+	acpi_header_t *table = acpi_map(addr); 
+	if(!table)
+		panic("couldn't map table");
 
-  /* check to see if the table has a valid checksum */
-  if (!acpi_table_valid(table))
-  {
-    char sig[5];
-    sig[0] = table->signature & 0xFF;
-    sig[1] = (table->signature >> 8) & 0xFF;
-    sig[2] = (table->signature >> 16) & 0xFF;
-    sig[3] = (table->signature >> 24) & 0xFF;
-    sig[4] = 0;
+	/* check to see if the table has a valid checksum */
+	if(!acpi_table_valid(table))
+	{
+		char sig[5];
+		sig[0] = table->signature & 0xFF;
+		sig[1] = (table->signature >> 8) & 0xFF;
+		sig[2] = (table->signature >> 16) & 0xFF;
+		sig[3] = (table->signature >> 24) & 0xFF;
+		sig[4] = 0;
 
-    panic("invalid checksum in %s", sig);
-  }
+		panic("invalid checksum in %s", sig);
+	}
 
-  /* scan the MADT */
-  if (table->signature == MADT_SIGNATURE)
-    madt_scan((madt_t *) table);
+	// Scan tables depending on signature
+	switch(table->signature)
+	{
+		case MADT_SIGNATURE:
+			madt_scan((madt_t *)table);
+			break;
+		case MCFG_SIGNATURE:
+			mcfg_scan((mcfg_t *)table);
+			break;
+			
+		default:
+			break;
+	}
 
-  /* we're done with it, unmap it */
-  acpi_unmap(table);
+	/* we're done with it, unmap it */
+	acpi_unmap(table);
 }
 
 bool acpi_scan(void)

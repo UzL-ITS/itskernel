@@ -47,15 +47,11 @@ static void module_load(multiboot_tag_t *tag)
   // TODO handle this in a more robust way
   trace_printf("MODULE proc_set_ui_process()\n");
   proc_set_ui_process(proc);
-  trace_printf("MODULE proc_display()\n");
   proc_display(proc->vbeContext);
-  
-  trace_printf("MODULE END\n");
 }
 
 void module_init(multiboot_t *multiboot)
 {
-  trace_printf("MODULE_INIT intr_lock()\n");
   /*
    * disable interrupts, module loading messes around with address space
    * switches so we don't want to confuse the scheduler
@@ -63,29 +59,19 @@ void module_init(multiboot_t *multiboot)
   intr_lock();
 
   /* keep a copy of the old process */
-  trace_printf("MODULE_INIT proc_get()\n");
   proc_t *old_proc = proc_get();
 
-  
-  trace_printf("MODULE_INIT multiboot_get()\n");
   multiboot_tag_t *tag = multiboot_get(multiboot, MULTIBOOT_TAG_MODULE);
   while (tag)
   {
-    trace_printf("MODULE_INIT module_load()\n");
     module_load(tag);
-    trace_printf("MODULE_INIT multiboot_get_after()\n");
     tag = multiboot_get_after(multiboot, tag, MULTIBOOT_TAG_MODULE);
   }
 
   /* switch back to the correct address space */
-  trace_printf("MODULE_INIT proc_switch()\n");
   if (old_proc)
     proc_switch(old_proc);
 
   /* enable interrupts again */
-  trace_printf("MODULE_INIT intr_unlock()\n");
   intr_unlock();
-  
-  // It is possible that this line is never reached: As soon as interrupts are re-enabled, the scheduler starts running the user process
-  trace_printf("MODULE_INIT END\n");
 }
