@@ -4,6 +4,7 @@
 
 #include <mm/common.h>
 #include <stddef.h>
+#include <stdint.h>
 
 /*
  * Initializes the kernel heap by allocating an initial free block which covers
@@ -27,6 +28,10 @@ void *heap_reserve(size_t size);
  * frames into the virtual memory.
  */
 void *heap_alloc(size_t size, vm_acc_t flags);
+
+// Same as heap_alloc, but makes sure that the allocated physical pages are contiguous.
+// The physical address of the allocated memory is written to the variable pointed to by physicalAddressPtr.
+void *heap_alloc_contiguous(size_t size, vm_acc_t flags, uint64_t *physicalAddressPtr);
 
 /*
  * Frees some memory from the kernel heap. If the memory was allocated with

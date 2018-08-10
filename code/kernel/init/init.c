@@ -104,7 +104,7 @@ noreturn void init(uint32_t magic, multiboot_t *multiboot)
 	/* set up the physical memory manager */
 	trace_puts("Setting up the physical memory manager...\n");
 	pmm_init(map);
-
+while(1);
 	/* set up the virtual memory manager */
 	trace_puts("Setting up the virtual memory manager...\n");
 	vmm_init();
@@ -115,12 +115,17 @@ noreturn void init(uint32_t magic, multiboot_t *multiboot)
 
 	// Output heap state
 	trace_puts("Heap alloc test...\n");
-	void *mem = heap_alloc(1234567, VM_R);
 	heap_trace();
-	heap_free(mem);
+	uint64_t phys;
+	void *cont = heap_alloc_contiguous(1024 * 1024 * 1024 + 512 * 1024 * 1024, VM_R, &phys);
+	if(!cont)
+		trace_puts("cont no allocation");
+	trace_printf("cont at %016x / %016x\n", (uint64_t)cont, phys);
+	heap_trace();
+	heap_free(cont);
 	heap_trace();
 	trace_puts("Heap alloc test complete.\n");
-
+while(1);
 	// Initialize VBE back buffers
 	trace_puts("Initialize VBE back buffers...\n");
 	vbe_init_back_buffers();	

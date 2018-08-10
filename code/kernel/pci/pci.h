@@ -1,8 +1,8 @@
-
-#ifndef _PCI_H
-#define _PCI_H
+#pragma once
 
 #include <stdint.h>
+#include <stdbool.h>
+
 
 // Information shared by all PCI configuration space headers.
 typedef struct
@@ -76,9 +76,10 @@ typedef struct
 	// Reserved.
 	uint8_t reserved[7];
 	
-	
+	// Unreliable.
 	uint8_t interruptLine;
 	
+	// Unreliable.
 	uint8_t interruptPin;
 	
 	// Unused.
@@ -88,12 +89,29 @@ typedef struct
 	uint8_t maxLat;
 } __attribute__((__packed__)) pci_cfgspace_header_0_t;
 
+typedef struct
+{
+	// The BAR's base address.
+	uint64_t baseAddress;
+	
+	// The bitness of the BAR's base address.
+	uint8_t bitness;
+	
+	// Tells whether the bar points to MMIO (true) or I/O space (false).
+	bool isMmio;
+	
+	// If the bar points to MMIO, this tells whether the memory is considered prefetchable or not.
+	bool isPrefetchable;
+	
+	// The size of the BAR in bytes.
+	uint64_t size;
+} pci_bar_info_t;
+
 // Adds the given memory mapped device configuration space to the internal device list.
 void pci_add_discovered_device(pci_cfgspace_header_common_t *deviceCfgSpaceHeaderCommon);
 
+// Retrieves the information of the given PCI BAR.
+void pci_get_bar_info(pci_cfgspace_header_0_t *deviceCfgSpaceHeader, int barIndex, pci_bar_info_t *infoPtr);
+
 // Initializes the PCI handler.
 void pci_init();
-
-
-
-#endif
