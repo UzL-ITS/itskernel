@@ -7,14 +7,21 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
+// Pointer to the PMM PML1 (loops once in PML4).
 #define PAGE_TABLE_OFFSET 0xFFFFFF7F7F7FF000
+
+// The amount of size/zone stacks.
 #define STACK_COUNT (ZONE_COUNT * SIZE_COUNT)
-#define PMM_STACK_SIZE (PAGE_TABLE_ENTRY_COUNT - 2)
+
+// The amount of addresses contained in one stack page.
+#define PMM_STACK_PAGE_SIZE (PAGE_TABLE_ENTRY_COUNT - 2)
+
+// Converts a size/zone pair to a stack ID.
 #define SZ_TO_IDX(s,z) ((s) * ZONE_COUNT + (z))
 
 // Structure of the internal stack pages.
 #pragma pack(push, 1)
-struct pmm_stack_s
+struct pmm_stack_page_s
 {
     // Points to the next bottom stack page; 0 for the lowest stack page.
     // We assume that there is no physical address == 0x00000000.
@@ -24,18 +31,23 @@ struct pmm_stack_s
     uint64_t count;
 
     // Frames saved in this stack page.
-    uint64_t frames[PMM_STACK_SIZE];
+    uint64_t frames[PMM_STACK_PAGE_SIZE];
 };
 #pragma pack(pop)
-typedef struct pmm_stack_s pmm_stack_t;
+typedef struct pmm_stack_page_s pmm_stack_page_t;
 
 // Structure of freed address list pages in the defragmentation procedure.
 #define PMM_DEFRAGMENT_FREED_LIST_ENTRY_COUNT 455
 #pragma pack(push, 1)
 struct pmm_defragment_freed_list_s
 {
+    // The memory block sizes of the respective stored address entries.
     uint8_t addressSizes[PMM_DEFRAGMENT_FREED_LIST_ENTRY_COUNT]; // 455 bytes
+
+    // Unused, for alignment.
     uint8_t _align; // 1 byte
+
+    // The memory block addresses.
     uint64_t addresses[PMM_DEFRAGMENT_FREED_LIST_ENTRY_COUNT]; // 3640 bytes
 };
 #pragma pack(pop)
@@ -44,10 +56,10 @@ typedef struct pmm_defragment_freed_list_s pmm_defragment_freed_list_t;
 // Pointer to the current stack
 // TODO these are page table entries later
 #define PMM_AUX_PAGES_COUNT 64 // Auxiliary pages for bookkeeping in defragmentation algorithm; this value is safe for ~24 GiB physical RAM
-static pmm_stack_t *pmm_stack[STACK_COUNT + 1 + PMM_AUX_PAGES_COUNT];
+static pmm_stack_page_t *pmmData[STACK_COUNT + 1 + PMM_AUX_PAGES_COUNT];
 
 // Cache variable to quickly determine whether there are still pages of the given kind available.
-static uint64_t pmm_counts[STACK_COUNT];
+static uint64_t pmmTotalFrameCounts[STACK_COUNT];
 
 static uint64_t baseAddrOffset;
 static uint64_t total4kPages;
@@ -125,8 +137,8 @@ static uintptr_t stack_switch(int size, int zone, uintptr_t addr)
     int idx = SZ_TO_IDX(size, zone);
 
     uintptr_t vaddr = addr + baseAddrOffset;
-    uintptr_t oldaddr = (uintptr_t)pmm_stack[idx] - baseAddrOffset;
-    pmm_stack[idx] = vaddr;
+    uintptr_t oldaddr = (uintptr_t)pmmData[idx] - baseAddrOffset;
+    pmmData[idx] = vaddr;
 
     return oldaddr;
 }
@@ -140,9 +152,9 @@ static bool _pmm_try_reserve_as_stack_page(uintptr_t addr)
         return false;
 
     // Space left?
-    pmm_stack_t *stackPageList = pmm_stack[9];
+    pmm_stack_page_t *stackPageList = pmmData[STACK_COUNT];
     uintptr_t removeAddress = 0;
-    if(stackPageList->count == PMM_STACK_SIZE)
+    if(stackPageList->count == PMM_STACK_PAGE_SIZE)
     {
         // Is there a lower address that could be removed?
         if(stackPageList->frames[stackPageList->count - 1] < addr)
@@ -156,7 +168,7 @@ static bool _pmm_try_reserve_as_stack_page(uintptr_t addr)
 
     // Determine insertion point
     int index = 0;
-    for(; index < stackPageList->count; ++index)
+    for(; index < (int)stackPageList->count; ++index)
         if(stackPageList->frames[index] < addr)
             break;
 
@@ -178,12 +190,12 @@ static bool _pmm_try_reserve_as_stack_page(uintptr_t addr)
 static uintptr_t _pmm_acquire_stack_page()
 {
     // Addresses available?
-    pmm_stack_t *stackPageList = pmm_stack[9];
+    pmm_stack_page_t *stackPageList = pmmData[STACK_COUNT];
     if(stackPageList->count > 0)
     {
         // Return highest address -> move all entries one step
         uintptr_t highestAddress = stackPageList->frames[0];
-        for(int i = 1; i < stackPageList->count; ++i)
+        for(int i = 1; i < (int)stackPageList->count; ++i)
             stackPageList->frames[i - 1] = stackPageList->frames[i];
         --stackPageList->count;
         return highestAddress;
@@ -198,7 +210,7 @@ static uintptr_t _pmm_alloc(int size, int zone, int maxZone, int *effectiveZone)
 {
     // Determine stack for the given size/zone combination
     int idx = SZ_TO_IDX(size, zone);
-    pmm_stack_t *stackTop = pmm_stack[idx];
+    pmm_stack_page_t *stackTop = pmmData[idx];
 
     // Still addresses available on that stack page? -> Just return the top most one of them
     if(stackTop->count != 0)
@@ -286,10 +298,10 @@ static void _pmm_free(int size, int zone, uintptr_t addr)
 
     // Get top most matching stack page
     int idx = SZ_TO_IDX(size, zone);
-    pmm_stack_t **stackTop = &pmm_stack[idx];
+    pmm_stack_page_t **stackTop = &pmmData[idx];
 
     // Still space left on that stack page -> store addr there
-    if((*stackTop)->count != PMM_STACK_SIZE)
+    if((*stackTop)->count != PMM_STACK_PAGE_SIZE)
     {
         (*stackTop)->frames[(*stackTop)->count++] = addr;
         return;
@@ -357,7 +369,7 @@ static uint64_t _pmm_defragment_read_index(uint64_t *stackPageAddrList, int size
 {
     // Load correct stack page
     int stackPageIndex;
-    int firstStackPageEmptyIndicesCount = PMM_STACK_SIZE - firstPageFrameCount;
+    int firstStackPageEmptyIndicesCount = PMM_STACK_PAGE_SIZE - firstPageFrameCount;
     if(index < firstPageFrameCount)
     {
         stackPageIndex = firstPageFrameCount - 1 - index;
@@ -369,15 +381,15 @@ static uint64_t _pmm_defragment_read_index(uint64_t *stackPageAddrList, int size
     }
     else
     {
-        int stackPageAddrListIndex = (index + firstStackPageEmptyIndicesCount) / PMM_STACK_SIZE;
-        stackPageIndex = PMM_STACK_SIZE - 1 - (index - firstPageFrameCount) % PMM_STACK_SIZE;
+        int stackPageAddrListIndex = (index + firstStackPageEmptyIndicesCount) / PMM_STACK_PAGE_SIZE;
+        stackPageIndex = PMM_STACK_PAGE_SIZE - 1 - (index - firstPageFrameCount) % PMM_STACK_PAGE_SIZE;
         if(*currentStackPageAddrPtr != stackPageAddrList[stackPageAddrListIndex])
         {
             stack_switch(size, zone, stackPageAddrList[stackPageAddrListIndex]);
             *currentStackPageAddrPtr = stackPageAddrList[stackPageAddrListIndex];
         }
     }
-    return pmm_stack[SZ_TO_IDX(size, zone)]->frames[stackPageIndex];
+    return pmmData[SZ_TO_IDX(size, zone)]->frames[stackPageIndex];
 }
 
 // Writes at an arbitrary stack index, using the given stack page address list.
@@ -385,7 +397,7 @@ static void _pmm_defragment_write_index(uint64_t *stackPageAddrList, int size, i
 {
     // Load correct stack page
     int stackPageIndex;
-    int firstStackPageEmptyIndicesCount = PMM_STACK_SIZE - firstPageFrameCount;
+    int firstStackPageEmptyIndicesCount = PMM_STACK_PAGE_SIZE - firstPageFrameCount;
     if(index < firstPageFrameCount)
     {
         stackPageIndex = firstPageFrameCount - 1 - index;
@@ -397,15 +409,15 @@ static void _pmm_defragment_write_index(uint64_t *stackPageAddrList, int size, i
     }
     else
     {
-        int stackPageAddrListIndex = (index + firstStackPageEmptyIndicesCount) / PMM_STACK_SIZE;
-        stackPageIndex = PMM_STACK_SIZE - 1 - (index - firstPageFrameCount) % PMM_STACK_SIZE;
+        int stackPageAddrListIndex = (index + firstStackPageEmptyIndicesCount) / PMM_STACK_PAGE_SIZE;
+        stackPageIndex = PMM_STACK_PAGE_SIZE - 1 - (index - firstPageFrameCount) % PMM_STACK_PAGE_SIZE;
         if(*currentStackPageAddrPtr != stackPageAddrList[stackPageAddrListIndex])
         {
             stack_switch(size, zone, stackPageAddrList[stackPageAddrListIndex]);
             *currentStackPageAddrPtr = stackPageAddrList[stackPageAddrListIndex];
         }
     }
-    pmm_stack[SZ_TO_IDX(size, zone)]->frames[stackPageIndex] = value;
+    pmmData[SZ_TO_IDX(size, zone)]->frames[stackPageIndex] = value;
 }
 
 // Builds a min heap for defragmentation at the given stack index, using the given stack page address list.
@@ -461,9 +473,12 @@ static void _pmm_defragment_min_heapify(uint64_t *stackPageAddrList, int size, i
 }
 
 // Frees empty stack pages.
+// NOTE: This function uses the left side of the auxiliary management data section!
 static void _pmm_defragment_free_empty_stack_pages()
 {
-    // Free empty stack pages
+    // Create a list of all empty stack pages
+    int emptyStackPagesCount = 0;
+    uint64_t *emptyStackPagesList = (uint64_t *)pmmData[STACK_COUNT + 1];
     for(int size = 0; size < SIZE_COUNT; ++size)
     {
         // Begin with ZONE_STD
@@ -471,39 +486,42 @@ static void _pmm_defragment_free_empty_stack_pages()
         {
             // Determine stack for the given size/zone combination
             int idx = SZ_TO_IDX(size, zone);
-            pmm_stack_t *stackTop = pmm_stack[idx];
+            pmm_stack_page_t **stackTop = &pmmData[idx];
 
-            // Stack page empty?
-            if(stackTop->count != 0)
-                continue;
-
-            // Stack page is empty, is there another one?
-            if(stackTop->next)
+            // Stack page empty and not the last one?
+            while((*stackTop)->count == 0 && (*stackTop)->next)
             {
                 // Go to next stack page
-                uintptr_t addr = stack_switch(size, zone, stackTop->next);
-
-                // Add the discarded page back to the stack page list?
-                if(!_pmm_try_reserve_as_stack_page(addr))
-                {
-                    // We cannot recycle this page, so free it
-                    _pmm_free(SIZE_4K, get_zone(SIZE_4K, addr), addr);
-                }
+                emptyStackPagesList[emptyStackPagesCount++] = stack_switch(size, zone, (*stackTop)->next);
             }
+        }
+    }
+
+    // Free all empty stack pages
+    for(int i = 0; i < emptyStackPagesCount; ++i)
+    {
+        // Add the discarded page back to the stack page list?
+        uint64_t addr = emptyStackPagesList[i];
+        printf("Free: %016x\n", addr);
+        if(!_pmm_try_reserve_as_stack_page(addr))
+        {
+            // We cannot recycle this page, so free it
+            _pmm_free(SIZE_4K, get_zone(SIZE_4K, addr), addr);
         }
     }
 }
 
 // Tries do defragment and reorganize physical memory. Warning: This is a VERY expensive operation!
 // After running this method the address stacks are guaranteed to be sorted in descending order.
+// This method calls itself two times again, once to merge remaining 2M pages and once to perform a final sorting.
 // - Sort all stacks using in-place Heapsort.
 // - (TODO Move each stack page to an unused 4K page at a highest possible address.)
 // - If desired: Merge pages to 2M and 1G pages as much as possible
-static void _pmm_defragment(bool merge)
+static void _pmm_defragment(bool merge, bool secondPass)
 {
     // Initialize temporary storage for freed addresses
     // Grow from right to left, to avoid intersecting the stack page address list that is stored from left to right
-    pmm_defragment_freed_list_t *firstFreedEntriesListPage = (pmm_defragment_freed_list_t *)pmm_stack[9 + 1 + PMM_AUX_PAGES_COUNT - 1];
+    pmm_defragment_freed_list_t *firstFreedEntriesListPage = (pmm_defragment_freed_list_t *)pmmData[STACK_COUNT + 1 + PMM_AUX_PAGES_COUNT - 1];
     pmm_defragment_freed_list_t *currentFreedEntriesListPage = firstFreedEntriesListPage;
     int freedEntriesCount = 0;
 
@@ -516,15 +534,15 @@ static void _pmm_defragment(bool merge)
         {
             // Get related stack page
             int idx = SZ_TO_IDX(size, zone);
-            pmm_stack_t **stackTop = &pmm_stack[idx];
-            if(!(*stackTop) || !(*stackTop)->count)
+            pmm_stack_page_t **stackTop = &pmmData[idx];
+            if(!(*stackTop) || (*stackTop)->count < 2)
                 continue; // Nothing to do here
 
             // Traverse stack to get physical addresses of all stack pages
             int stackPageCount = 0;
             int totalFrameCount = 0;
             int firstStackPageFrameCount = (stackTop ? (*stackTop)->count : 0);
-            uint64_t *stackPageAddrList = (uint64_t *)pmm_stack[10];
+            uint64_t *stackPageAddrList = (uint64_t *)pmmData[STACK_COUNT + 1];
             while(*stackTop)
             {
                 // Add amount of free pages
@@ -537,7 +555,6 @@ static void _pmm_defragment(bool merge)
                 ++stackPageCount;
 
                 // Next page valid?
-                // NOTE this is not needed in the real PMM later, since we add no base offset there
                 if(!nextStackPageExists)
                     break;
             }
@@ -581,10 +598,9 @@ static void _pmm_defragment(bool merge)
             if(size == SIZE_2M)
                 sizeBytes = FRAME_SIZE_2M;
 
-            // Run through stack; since the addresses are stored in descending order
+            // Run through stack; since the addresses are stored in descending order, we can identify contiguous blocks in linear time now
             uint64_t lastAlignedEndAddress = 0xFFFFFFFF; // Invalid value
             uint64_t lastContiguousAddress = 0xFFFFFFFF; // Invalid value
-            int lastAlignedEndAddressIndex = 0;
             int removedPagesCountTotal = 0;
             for(int i = 0; i < totalFrameCount; ++i)
             {
@@ -596,7 +612,6 @@ static void _pmm_defragment(bool merge)
                     // This block is aligned
                     lastAlignedEndAddress = addr;
                     lastContiguousAddress = addr;
-                    lastAlignedEndAddressIndex = i;
                 }
                 else if(lastContiguousAddress - sizeBytes == addr)
                 {
@@ -630,7 +645,7 @@ static void _pmm_defragment(bool merge)
                         while(true)
                         {
                             // Subtract from frame count
-                            if((*stackTop)->count < removedPagesCount)
+                            if((int)(*stackTop)->count < removedPagesCount)
                             {
                                 // This stack page is cleared completely, it will be freed later
                                 removedPagesCount -= (*stackTop)->count;
@@ -671,6 +686,9 @@ static void _pmm_defragment(bool merge)
     if(!merge)
         return;
 
+    // Free empty stack pages
+    _pmm_defragment_free_empty_stack_pages();
+
     // Free merged pages
     currentFreedEntriesListPage = firstFreedEntriesListPage;
     for(int i = 0; i < freedEntriesCount; ++i)
@@ -684,8 +702,17 @@ static void _pmm_defragment(bool merge)
         _pmm_free(size, get_zone(size, address), address);
     }
 
-    // Do another round of sorting, this time without merging
-    _pmm_defragment(false);
+    // Which defragmentation pass is running?
+    if(secondPass)
+    {
+        // Second merge is done, just do a final sorting round
+        _pmm_defragment(false, false);
+    }
+    else
+    {
+        // Do another round to merge remaining 2M pages
+        _pmm_defragment(true, true);
+    }
 }
 
 // Pushes a range of pages between (aligned) addresses start...end with the given size onto the respective stack.
@@ -693,7 +720,6 @@ static void pmm_push_range(uintptr_t start, uintptr_t end, int size)
 {
     // Run through addresses in the given range
     uintptr_t inc = 0;
-    int count = 1;
     switch(size)
     {
         case SIZE_4K:
@@ -702,12 +728,10 @@ static void pmm_push_range(uintptr_t start, uintptr_t end, int size)
 
         case SIZE_2M:
             inc = FRAME_SIZE_2M;
-            count = FRAME_SIZE_2M / FRAME_SIZE;
             break;
 
         case SIZE_1G:
             inc = FRAME_SIZE_1G;
-            count = FRAME_SIZE_1G / FRAME_SIZE;
             break;
     }
     for(uintptr_t addr = start; addr < end; addr += inc)
@@ -718,7 +742,7 @@ static void pmm_push_range(uintptr_t start, uintptr_t end, int size)
 
         // Keep track of free page count
         int idx = SZ_TO_IDX(size, zone);
-        pmm_counts[idx]++;
+        pmmTotalFrameCounts[idx]++;
     }
 }
 
@@ -734,16 +758,16 @@ void pmm_init(uint64_t addr_start, uint64_t addr_end, uint64_t baseOffset, uintp
         {
             // Load stack page
             int idx = SZ_TO_IDX(size, zone);
-            stack_switch(size, zone, (uintptr_t)&(((pmm_stack_t *)phyStack)[idx]));
+            stack_switch(size, zone, (uintptr_t)&(((pmm_stack_page_t *)phyStack)[idx]));
 
             // Clear page data
-            memset(pmm_stack[idx], 0, sizeof(**pmm_stack));
+            memset(pmmData[idx], 0, sizeof(**pmmData));
         }
     }
 
-    pmm_stack[9] = baseAddrOffset + (uint64_t)&(((pmm_stack_t *)phyStack)[9]);
-    pmm_stack[9]->count = 0;
-    pmm_stack[9]->next = 0; // Unused
+    pmmData[9] = baseAddrOffset + (uint64_t)&(((pmm_stack_page_t *)phyStack)[9]);
+    pmmData[9]->count = 0;
+    pmmData[9]->next = 0; // Unused
 
     total4kPages = (PAGE_ALIGN_REVERSE(addr_end + 1) - PAGE_ALIGN(phyStack)) / FRAME_SIZE;
     printf("Total 4K pages: %d\n", total4kPages);
@@ -756,7 +780,7 @@ void pmm_init(uint64_t addr_start, uint64_t addr_end, uint64_t baseOffset, uintp
     // TODO this will be moved to the end; we need contiguous memory in our testing buffer here, but in the real PMM this is done by virtual memory automatically
     end -= PMM_AUX_PAGES_COUNT * FRAME_SIZE;
     for(int i = 0; i < PMM_AUX_PAGES_COUNT; ++i)
-        pmm_stack[10 + i] = baseOffset + end + i * 4096;
+        pmmData[10 + i] = baseOffset + end + i * 4096;
 
     uintptr_t start_2m = PAGE_ALIGN_2M(addr_start);
     uintptr_t end_2m = PAGE_ALIGN_REVERSE_2M(addr_end + 1);
@@ -813,12 +837,12 @@ void pmm_init(uint64_t addr_start, uint64_t addr_end, uint64_t baseOffset, uintp
     }*/
 
     // Reserve some high 4K addresses for the stack page collection
-    // Right now all addresses are sorted descending, so we should get the highest available pages -> TODO verify for real physical case
-    pmm_stack_t *stackPageList = pmm_stack[9];
+    // Right now all addresses should sorted in descending order, so we should get the highest available pages
+    pmm_stack_page_t *stackPageList = pmmData[9];
     int tmp;
-    for(int i = 0; i < PMM_STACK_SIZE; ++i)
+    for(int i = 0; i < PMM_STACK_PAGE_SIZE; ++i)
         stackPageList->frames[i] = _pmm_alloc(SIZE_4K, ZONE_STD, ZONE_STD, &tmp);
-    stackPageList->count = PMM_STACK_SIZE;
+    stackPageList->count = PMM_STACK_PAGE_SIZE;
     stackPageListInitialized = true;
 }
 
@@ -857,7 +881,7 @@ void pmm_frees(int size, uintptr_t addr)
 uintptr_t pmm_alloc_contiguous(int size, int count)
 {
     // The address stacks need to be sorted
-    _pmm_defragment(true);
+    _pmm_defragment(true, false);
 
     // Compute byte size per block
     uint64_t sizeBytes = FRAME_SIZE;
@@ -870,15 +894,15 @@ uintptr_t pmm_alloc_contiguous(int size, int count)
     for(int zone = 0; zone < ZONE_COUNT; ++zone)
     {
         int idx = SZ_TO_IDX(size, zone);
-        pmm_stack_t **stackTop = &pmm_stack[idx];
-        if(!(*stackTop) || !(*stackTop)->count)
+        pmm_stack_page_t **stackTop = &pmmData[idx];
+        if(!(*stackTop) || (int)(*stackTop)->count < count)
             continue; // Nothing to do here
 
         // Traverse stack and store physical addresses of all involved stack pages (1:1 copy from _pmm_defragment)
         int stackPageCount = 0;
         int totalFrameCount = 0;
         int firstStackPageFrameCount = (stackTop ? (*stackTop)->count : 0);
-        uint64_t *stackPageAddrList = (uint64_t *)pmm_stack[10];
+        uint64_t *stackPageAddrList = (uint64_t *)pmmData[10];
         while(*stackTop)
         {
             // Add amount of free pages
@@ -903,7 +927,6 @@ uintptr_t pmm_alloc_contiguous(int size, int count)
         // Try to find contiguous block by iterating backwards
         uint64_t lastEndAddress = 0xFFFFFFFF; // Invalid value
         uint64_t lastContiguousAddress = 0xFFFFFFFF; // Invalid value
-        int lastEndAddressIndex = 0;
         int contiguousPagesCount = 0;
         for(int i = 0; i < totalFrameCount; ++i)
         {
@@ -935,7 +958,7 @@ uintptr_t pmm_alloc_contiguous(int size, int count)
                     while(true)
                     {
                         // Subtract from frame count
-                        if((*stackTop)->count < contiguousPagesCount)
+                        if((int)(*stackTop)->count < contiguousPagesCount)
                         {
                             // This stack page is cleared completely, it will be freed later
                             contiguousPagesCount -= (*stackTop)->count;
@@ -969,7 +992,6 @@ uintptr_t pmm_alloc_contiguous(int size, int count)
                 // Start new try with the current address
                 lastEndAddress = addr;
                 lastContiguousAddress = addr;
-                lastEndAddressIndex = i;
                 contiguousPagesCount = 1;
             }
         }
@@ -1006,14 +1028,14 @@ void pmm_dump_stack(const char *name)
                 sizeBytes = FRAME_SIZE_1G;
 
             int idx = SZ_TO_IDX(size, zone);
-            uint64_t count = pmm_counts[idx];
+            uint64_t count = pmmTotalFrameCounts[idx];
             if(count > 0)
             {
                 const char *zone_str = get_zone_str(zone);
                 const char *size_str = get_size_str(size);
                 printf("    => Zone %s Size %s: %d frames\n", zone_str, size_str, count);
 
-                pmm_stack_t *curStack = pmm_stack[idx];
+                pmm_stack_page_t *curStack = pmmData[idx];
                 while(curStack)
                 {
                     printf("        StackPage at %#016x: %d frames\n", (uint64_t)curStack - baseAddrOffset, curStack->count);
@@ -1041,12 +1063,12 @@ void pmm_dump_stack(const char *name)
         }
     }
 
-    pmm_stack_t *stackPageList = pmm_stack[9];
+    pmm_stack_page_t *stackPageList = pmmData[9];
     for(int i = 0; i < stackPageList->count; ++i)
         data[8 + stackPageList->frames[i] / 4096] = DUMP_RESERVED;
 
     for(int i = 0; i < PMM_AUX_PAGES_COUNT; ++i)
-        data[8 + ((uint64_t)pmm_stack[10 + i] - baseAddrOffset) / 4096] = DUMP_AUX;
+        data[8 + ((uint64_t)pmmData[10 + i] - baseAddrOffset) / 4096] = DUMP_AUX;
 
     FILE *f = fopen(name, "w");
     fwrite(data, 1, dataLen, f);

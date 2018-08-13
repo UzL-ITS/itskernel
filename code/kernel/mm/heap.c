@@ -42,7 +42,7 @@ void heap_init(void)
     uintptr_t heap_start = VM_HIGHER_HALF;
 
     /* hard coded end of the kernel heap (inclusive) */
-    uintptr_t heap_end = VM_STACK_OFFSET - 1;
+    uintptr_t heap_end = PMM_INTERNAL_DATA_ADDRESS - 1;
 
     /* allocate some space forthe root node */
     uintptr_t root_phy = pmm_alloc();
