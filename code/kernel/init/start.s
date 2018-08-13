@@ -104,7 +104,7 @@ boot_pml4:
   dq (boot_pml3h + PG_PRESENT + PG_WRITABLE)
 
 boot_pml3l:
-  dq (boot_pml2 + PG_PRESENT + PG_WRITABLE)
+  dq (boot_pml2 + PG_PRESENT + PG_WRITABLE) ; Kernel code addresses start with (FFFF) FF80 0000 0000
   dq 0
   times (TABLE_SIZE - 2) dq 0
 
@@ -114,7 +114,7 @@ boot_pml3h:
   dq 0
 
 boot_pml2:
-  dq (0x0 + PG_PRESENT + PG_WRITABLE + PG_BIG)
+  dq (0x0 + PG_PRESENT + PG_WRITABLE + PG_BIG) ; Contains this kernel code section, remaining kernel will be mapped later when long mode is up
   times (TABLE_SIZE - 1) dq 0
 
 identity_pml3:
@@ -229,12 +229,12 @@ start:
   mov rax, gdtr + KERNEL_VMA
   lgdt [rax]
 
-  ; map the rest of the kernel into virtual memory
+  ; map the rest of the kernel into virtual memory (use 2MB "huge" pages)
   mov rax, _start - KERNEL_VMA      ; first page number
   shr rax, LOG_PAGE_SIZE + LOG_TABLE_SIZE
   mov rbx, _end - KERNEL_VMA        ; last page number
   shr rbx, LOG_PAGE_SIZE + LOG_TABLE_SIZE
-  mov rcx, boot_pml2 + KERNEL_VMA   ; pointer into pml2 table
+  mov rcx, boot_pml2 + KERNEL_VMA   ; virtual pointer into PML2 table (the table itself was mapped alongside the first 2MB of the kernel)
   .map_page:
     ; calculate the value of the page table entry
     mov rdx, rax

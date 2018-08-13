@@ -12,17 +12,17 @@
 #include <stddef.h>
 #include <stdlib/string.h>
 
-// 133693440 frames = 510 * 512 * 512 PML1 tables
-#define PML1_OFFSET 0xFFFFFF0000000000
+// Does 4 loops using PML4[510] -> Pointer to PML4 itself.
+#define PML4_OFFSET 0xFFFFFF7FBFDFE000
 
-// 261120 frames = 510 * 512 PML2 tables
-#define PML2_OFFSET 0xFFFFFF7F80000000
-
-// 510 frames = 510 PML3 tables (two entries of PML4 are used differently)
+// Does 3 loops using PML4[510] -> Pointer to virtual memory for 510 PML3 tables.
 #define PML3_OFFSET 0xFFFFFF7FBFC00000
 
-// 1 frame = 1 PML4 table
-#define PML4_OFFSET 0xFFFFFF7FBFDFE000
+// Does 2 loops using PML4[510] -> Pointer to virtual memory for 510 * 512 PML2 tables.
+#define PML2_OFFSET 0xFFFFFF7F80000000
+
+// Does 1 loop using PML4[510] -> Pointer to virtual memory for 510 * 512 * 512 PML1 tables.
+#define PML1_OFFSET 0xFFFFFF0000000000
 
 typedef struct
 {
