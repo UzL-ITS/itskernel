@@ -118,6 +118,7 @@ void tlb_transaction_queue_invlpg(uintptr_t addr)
 {
   if (tlb_op_ptr >= TLB_OP_QUEUE_SIZE)
   {
+	// Queue will overflow, just reset the whole TLB instead
     tlb_transaction_queue_flush();
   }
   else
@@ -128,6 +129,7 @@ void tlb_transaction_queue_invlpg(uintptr_t addr)
   }
 }
 
+// Enqueues a full TLB flush.
 void tlb_transaction_queue_flush(void)
 {
   tlb_op_ptr = 1;

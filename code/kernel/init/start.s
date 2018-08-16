@@ -97,24 +97,24 @@ mb_hdr_end:
 align PAGE_SIZE
 [global boot_pml4]
 boot_pml4:
-  dq (boot_pml3l + PG_PRESENT + PG_WRITABLE)
+  dq (boot_pml3l + PG_PRESENT + PG_WRITABLE)             ; Kernel code addresses start with (0000) 0000 0000 0000     (kernel is mapped two times)
   times (TABLE_SIZE - 4) dq 0
   dq (identity_pml3 + PG_PRESENT + PG_WRITABLE)
   dq (boot_pml4 + PG_PRESENT + PG_WRITABLE + PG_NO_EXEC)
-  dq (boot_pml3h + PG_PRESENT + PG_WRITABLE)
+  dq (boot_pml3h + PG_PRESENT + PG_WRITABLE)             ; Kernel code addresses start with (FFFF) FF80 0000 0000
 
 boot_pml3l:
-  dq (boot_pml2 + PG_PRESENT + PG_WRITABLE) ; Kernel code addresses start with (FFFF) FF80 0000 0000
+  dq (boot_pml2 + PG_PRESENT + PG_WRITABLE) ; Kernel code addresses start with (0000) 0000 0000 0000
   dq 0
   times (TABLE_SIZE - 2) dq 0
 
 boot_pml3h:
   times (TABLE_SIZE - 2) dq 0
-  dq (boot_pml2 + PG_PRESENT + PG_WRITABLE)
+  dq (boot_pml2 + PG_PRESENT + PG_WRITABLE) ; Kernel code addresses start with (FFFF) FFFF 8000 0000
   dq 0
 
 boot_pml2:
-  dq (0x0 + PG_PRESENT + PG_WRITABLE + PG_BIG) ; Contains this kernel code section, remaining kernel will be mapped later when long mode is up
+  dq (0x0 + PG_PRESENT + PG_WRITABLE + PG_BIG) ; Contains the first 2MB of the kernel code section, remaining kernel will be mapped later when long mode is up
   times (TABLE_SIZE - 1) dq 0
 
 identity_pml3:

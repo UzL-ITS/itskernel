@@ -33,7 +33,7 @@ proc_t *proc_create(void)
 	if(!proc || !procNode)
 		return 0;
 
-	// Allocate head PML4 table
+	// Allocate PML4 table for this process
 	proc->pml4_table = pmm_alloc();
 	if(!proc->pml4_table)
 	{
@@ -42,7 +42,7 @@ proc_t *proc_create(void)
 		return 0;
 	}
 
-	// Initialize PML4 table
+	// Initialize PML4 table with higher-half kernel-space entries
 	if(!vmm_init_pml4(proc->pml4_table))
 	{
 		pmm_free(proc->pml4_table);
@@ -51,7 +51,7 @@ proc_t *proc_create(void)
 		return 0;
 	}
 
-	// Initialize virtual memory
+	// Initialize process virtual memory
 	proc->vmm_lock = SPIN_UNLOCKED;
 	if(!seg_init(&proc->segments))
 	{

@@ -171,8 +171,9 @@ noreturn void init(uint32_t magic, multiboot_t *multiboot)
 	tlb_init();
 
 	// Scan PCI devices
-	pci_init();
-while(1);
+	// TODO implement network stack
+	//pci_init();
+	
 	/* set up idle process, this must be done before we are in SMP mode */
 	idle_init();
 
@@ -190,7 +191,7 @@ while(1);
 	keyboard_init();
 
 	/* set up modules */
-	// Do this BEFORE starting the scheduler, else we might run into a race condition where the scheduler interrupt fires before it can be disabled, leaving execution stuck in the idle() process
+	// Do this BEFORE starting the scheduler, else we might run into a race condition where the scheduler interrupt fires too soon, leaving execution stuck in the idle() process
 	trace_puts("Loading modules...\n");
 	module_init(multiboot);
 

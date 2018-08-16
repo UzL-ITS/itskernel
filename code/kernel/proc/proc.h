@@ -68,6 +68,8 @@ typedef struct
 
 proc_t *proc_create(void);
 proc_t *proc_get(void);
+
+// Set state variables and load the processes virtual address space (the kernel is still mapped into the higher half).
 void proc_switch(proc_t *proc);
 
 // Sets the UI process.
