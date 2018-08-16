@@ -329,7 +329,7 @@ static void _pmm_free(int size, int zone, uintptr_t addr)
         return;
     }
 
-    // Allocation in ZONE_STD failed (probably physical RAM too small)
+    // Allocation failed (probably physical RAM too small)
     if(size == SIZE_4K)
     {
         // This is a 4K page in an arbitrary zone, just use it
@@ -895,8 +895,6 @@ uintptr_t pmm_alloc_contiguous(int size, int count)
     {
         int idx = SZ_TO_IDX(size, zone);
         pmm_stack_page_t **stackTop = &pmmData[idx];
-        if(!(*stackTop) || (int)(*stackTop)->count < count)
-            continue; // Nothing to do here
 
         // Traverse stack and store physical addresses of all involved stack pages (1:1 copy from _pmm_defragment)
         int stackPageCount = 0;

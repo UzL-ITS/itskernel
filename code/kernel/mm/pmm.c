@@ -3,6 +3,7 @@
 #include <mm/align.h>
 #include <mm/map.h>
 #include <cpu/tlb.h>
+#include <cpu/features.h>
 #include <lock/spinlock.h>
 #include <util/container.h>
 #include <trace/trace.h>
@@ -341,7 +342,7 @@ static void _pmm_free(int size, int zone, uintptr_t addr)
     }
    
     // TODO Put new 4K to the highest possible address, not the lowest -> further reduce fragmentation
-    // Allocation in ZONE_STD failed (probably physical RAM too small)
+    // Allocation failed (probably physical RAM too small)
     if(size == SIZE_4K)
     {
         // This is a 4K page in an arbitrary zone, just use it
@@ -602,6 +603,10 @@ static void _pmm_defragment(bool merge, bool secondPass)
             // Sorting is done, now merge pages
             if(!merge)
                 continue; // Next zone/size
+			
+			// If 1GB pages are not supported, do not create them
+			if(!enable1gPages && size == SIZE_2M)
+				continue;
 
             // Compute alignment and size parameters
             uint64_t alignment = FRAME_SIZE_2M;
@@ -731,6 +736,14 @@ static void _pmm_defragment(bool merge, bool secondPass)
 // Pushes a range of pages between (aligned) addresses start...end with the given size onto the respective stack.
 static void pmm_push_range(uintptr_t start, uintptr_t end, int size)
 {
+	// Are 1G pages enabled?
+	if(size == SIZE_1G && !enable1gPages)
+	{
+		// Split into 2M pages
+		pmm_push_range(start, end, SIZE_2M);
+		return;
+	}
+	
     // Run through addresses in the given range
     uintptr_t inc = 0;
     switch(size)
@@ -780,7 +793,7 @@ static void _pmm_debug()
 
 void pmm_init(list_t *map)
 {
-    // First load the nine initial PMM stack pages into virtual memory by writing their physical address into the PMM PML1 page table
+	// First load the nine initial PMM stack pages into virtual memory by writing their physical address into the PMM PML1 page table
     // These stack pages are then referred twice by virtual memory (once in the kernel image address space, and here)
     for(int size = 0; size < SIZE_COUNT; size++)
     {
@@ -817,9 +830,29 @@ void pmm_init(list_t *map)
 
         uintptr_t start_2m = PAGE_ALIGN_2M(entry->addr_start);
         uintptr_t end_2m = PAGE_ALIGN_REVERSE_2M(entry->addr_end + 1);
+		
+		// If 1G pages are disabled, allocate more contiguous 4K pages to avoid splitting of mid 2M pages
+		if(!enable1gPages && start_2m <= end_2m)
+		{
+			// Get amount of splittable pages
+			int splitCount = 4;
+			while(splitCount >= 0 &&
+				(  end_2m - splitCount * FRAME_SIZE_2M < (uint64_t)ZONE_LIMIT_DMA32 + 1
+				|| end_2m - splitCount * FRAME_SIZE_2M < start_2m))
+			{
+				// Split one page less
+				--splitCount;
+			}
+			
+			// Split pages
+			if(splitCount > 0)
+				end_2m -= splitCount * FRAME_SIZE_2M;
+		}
 
         uintptr_t start_1g = PAGE_ALIGN_1G(entry->addr_start);
         uintptr_t end_1g = PAGE_ALIGN_REVERSE_1G(entry->addr_end + 1);
+		
+		trace_printf("  4K: %012x - %012x  2M: %012x - %012x  1G: %012x - %012x\n", start, end, start_2m, end_2m, start_1g, end_1g);
 
         // Fill physical address space with biggest possible (aligned) pages:
         // unused | 4K ... 4K | 2M ... 2M | 1G ... 1G | 2M ... 2M | 4K ... 4K | unused
@@ -913,8 +946,16 @@ void pmm_frees(int size, uintptr_t addr)
 
 uintptr_t pmm_alloc_contiguous(int size, int count)
 {
+	// Contiguous allocation needed?
+	trace_printf("pmm_alloc_contiguous with size %s, count %d\n", get_size_str(size), count);
+	if(count == 1)
+	{
+		uintptr_t ptr = pmm_allocs(size);
+		return ptr;
+	}
+	
     spin_lock(&pmmLock);
-    
+	
     // The address stacks need to be sorted
     _pmm_defragment(true, false);
 
@@ -924,14 +965,12 @@ uintptr_t pmm_alloc_contiguous(int size, int count)
         sizeBytes = FRAME_SIZE_2M;
     else if(size == SIZE_1G)
         sizeBytes = FRAME_SIZE_1G;
-
+    
     // Run through zones and try to find a fitting memory block
     for(int zone = 0; zone < ZONE_COUNT; ++zone)
     {
         int idx = SZ_TO_IDX(size, zone);
         pmm_stack_page_t *stackTop = &pmmData[idx];
-        if((int)stackTop->count < count)
-            continue; // Nothing to do here
 
         // Traverse stack and store physical addresses of all involved stack pages (1:1 copy from _pmm_defragment)
         int stackPageCount = 0;

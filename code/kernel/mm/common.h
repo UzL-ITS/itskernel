@@ -2,6 +2,8 @@
 #ifndef _MM_COMMON_H
 #define _MM_COMMON_H
 
+#include <stdbool.h>
+
 /* user-space virtual memory end address (inclusive) */
 #define VM_USER_END 0x00007FFFFFFFFFFF
 
@@ -42,5 +44,8 @@ typedef enum
 #define PG_BIG       0x80
 #define PG_NO_EXEC   0x8000000000000000
 #define PG_ADDR_MASK 0xFFFFFFFFFF000
+
+// Determines whether 1G pages are available on this CPU. This value is set in init.c.
+extern bool enable1gPages;
 
 #endif

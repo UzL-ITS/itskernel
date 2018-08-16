@@ -3,6 +3,7 @@
 #include <lock/spinlock.h>
 #include <mm/pmm.h>
 #include <mm/vmm.h>
+#include <mm/common.h>
 #include <mm/align.h>
 #include <mm/range.h>
 #include <panic/panic.h>
@@ -13,6 +14,10 @@
 
 /* a magic id used to check ifrequests are valid */
 #define HEAP_MAGIC 0x461E7B705515DB7F
+
+// The tolerable amount of unused space on an allocated large page.
+// Used for determining a good fit for contiguous allocations.
+#define TOLERABLE_PAGE_SPACE_WASTE_1G 536870912 // 50%
 
 /* the states a heap node can be in */
 typedef enum
@@ -67,57 +72,80 @@ void heap_init(void)
     heap_root->magic = heap_root->start ^ HEAP_MAGIC;
 }
 
-static heap_node_t *find_node(size_t size)
+static heap_node_t *find_node(size_t size, uint64_t alignment)
 {
-    /* look forthe first node that will fit the requested size */
+    // Look for the first node that will fit the requested size
     for(heap_node_t *node = heap_root; node; node = node->next)
     {
-        /* skip free nodes */
+        // Skip non-free nodes
         if(node->state != HEAP_FREE)
             continue;
-
-        /* skip nodes that are too small */
-        size_t node_size = node->end - node->start + 1;
-        if(node_size < size)
-            continue;
-
-        /* check ifsplitting the node would actually leave some space */
-        size_t extra_size = node_size - size;
-        if(extra_size >= (FRAME_SIZE * 2))
+		
+		// Calculate aligned start
+		uint64_t nodeStart = node->start;
+		uint64_t nodeEnd = node->end;
+		uint64_t alignedStart = ((nodeStart + (alignment - 1)) & ~(alignment - 1)) - FRAME_SIZE; // FRAME_SIZE for the 4K node header block
+		if(alignedStart + FRAME_SIZE + size > nodeEnd + 1)
+			continue;
+		
+		// Spare space at the begin?
+		if(alignedStart + FRAME_SIZE > nodeStart)
+		{
+			// Move node to alignedStart, just waste the remaining heap address space, it is still too much to ever exhaust it within the kernel
+			uint64_t nodePhy = vmm_unmap((uint64_t)node);
+			node = (heap_node_t *)alignedStart;
+			if(vmm_map((uint64_t)node, nodePhy, VM_R | VM_W))
+			{
+				// Update predecessor and successor
+				if(node->prev)
+					node->prev->next = node;
+				else
+					heap_root = node;
+				if(node->next)
+					node->next->prev = node;
+				
+				// Update start address and magic value
+				node->start = alignedStart + FRAME_SIZE;
+				node->magic = node->start ^ HEAP_MAGIC;
+			}
+			else
+				panic("Couldn't remap heap node to aligned position");
+		}
+		
+		// Remaining space at the end?
+        uint64_t remainingSize = (nodeEnd + 1) - (alignedStart + FRAME_SIZE + size);
+        if(remainingSize >= (FRAME_SIZE * 2))
         {
-            /* only split the node ifwe can allocate a physical page */
-            uintptr_t phy = pmm_alloc();
-            if(phy)
+            // Get a new physical page for the successor node
+            uintptr_t nextNodePhy = pmm_alloc();
+            if(nextNodePhy)
             {
-                /* map the new heap_node_t into virtual memory, only split ifit works */
-                heap_node_t *next = (heap_node_t *) ((uintptr_t) node + size + FRAME_SIZE);
-                if(vmm_map((uintptr_t) next, phy, VM_R | VM_W))
+                // Map new heap node into virtual memory
+                heap_node_t *nextNode = (heap_node_t *)(alignedStart + FRAME_SIZE + size);
+                if(vmm_map((uint64_t)nextNode, nextNodePhy, VM_R | VM_W))
                 {
-                    /* fill in the new heap_node_t */
-                    next->start = (uintptr_t) node + size + FRAME_SIZE * 2;
-                    next->end = node->end;
-                    next->state = HEAP_FREE;
-                    next->prev = node;
-                    next->next = node->next;
-                    next->magic = next->start ^ HEAP_MAGIC;
-
-                    /* update the node that was split */
-                    node->end = (uintptr_t) next - 1;
-
-                    /* update the surrounding nodes */
-                    node->next = next;
-                    if(next->next)
-                        next->next->prev = next;
+                    // Set limits of new and old node
+					node->end = alignedStart + FRAME_SIZE + size - 1;
+                    nextNode->start = alignedStart + FRAME_SIZE + size + FRAME_SIZE;
+                    nextNode->end = nodeEnd;
+                    nextNode->magic = nextNode->start ^ HEAP_MAGIC;
+					
+					// Set node state
+                    nextNode->state = HEAP_FREE;
+					
+					// Update successor and predecessor
+					nextNode->next = node->next;
+					if(nextNode->next)
+						nextNode->next->prev = nextNode;
+					node->next = nextNode;
+					nextNode->prev = node;
                 }
                 else
-                {
-                    /* free the unused physical frame */
-                    pmm_free(phy);
-                }
+                    pmm_free(nextNodePhy);
             }
         }
 
-        /* update the state of the allocated node */
+        // Mark node as reserved (but not allocated yet)
         node->state = HEAP_RESERVED;
         return node;
     }
@@ -128,12 +156,12 @@ static heap_node_t *find_node(size_t size)
 static void _heap_free(void *ptr)
 {
     /* find where the node is */
-    heap_node_t *node = (heap_node_t *) ((uintptr_t) ptr - FRAME_SIZE);
-
-    /* check ifthe magic matches to see ifwe get passed a dodgy pointer */
+    heap_node_t *node = (heap_node_t *)((uintptr_t) ptr - FRAME_SIZE);
+	
+	/* check if the magic matches to see if we get passed a dodgy pointer */
     assert(node->magic == (node->start ^ HEAP_MAGIC));
 
-    /* free the physical frames ifheap_alloc allocated them */
+    /* free the physical frames if heap_alloc allocated them */
     size_t size = node->end - node->start + 1;
     if(node->state == HEAP_ALLOCATED)
         range_free(node->start, size);
@@ -143,7 +171,7 @@ static void _heap_free(void *ptr)
 
     /* try to coalesce with the next node */
     heap_node_t *next = node->next;
-    if(next && next->state == HEAP_FREE)
+    if(next && next->state == HEAP_FREE && node->end + 1 == (uint64_t)next)
     {
         /* update the pointers */
         node->next = next->next;
@@ -159,7 +187,7 @@ static void _heap_free(void *ptr)
 
     /* try to coalesce with the previous node */
     heap_node_t *prev = node->prev;
-    if(prev && prev->state == HEAP_FREE)
+    if(prev && prev->state == HEAP_FREE && prev->end + 1 == (uint64_t)node)
     {
         /* update the pointers */
         prev->next = node->next;
@@ -174,43 +202,132 @@ static void _heap_free(void *ptr)
     }
 }
 
+// Sub function of _heap_alloc. Tries to allocate a contiguous block of pages with the given size.
+static void *_heap_alloc_contiguous(int pageSize, int count, vm_acc_t flags, uint64_t *physicalAddressPtr)
+{
+	// Find a fitting node
+	uint64_t len = FRAME_SIZE * count;
+	if(pageSize == SIZE_2M)
+		len = FRAME_SIZE_2M * count;
+	else if(pageSize == SIZE_1G)
+		len = FRAME_SIZE_1G * count;
+	heap_node_t *node = find_node(len, FRAME_SIZE_1G); // 1G alignment
+	if(!node)
+		return 0;
+	
+	// Try to allocate and map memory
+	if(!range_alloc_contiguous(node->start, pageSize, count, flags, physicalAddressPtr))
+	{
+		_heap_free((void *)node->start);
+		return 0;
+	}
+	
+	// Node is allocated
+	node->state = HEAP_ALLOCATED;
+	node->flags = flags;
+	return (void *)node->start;
+}
+
 // Allocates memory of the given size on the heap.
 // Parameters:
 // - size: The size of the memory to be allocated (is rounded up to page alignment).
 // - flags: Access flags.
 // - phy_alloc: Determines whether physical memory shall be allocated.
-// - contiguos: Determines whether the allocated physical memory shall be contiguous.
+// - contiguous: Determines whether the allocated physical memory shall be contiguous.
 // - physicalAddressPtr: A pointer to a variable where the physical address of the allocated *contiguous* memory is written to.
 static void *_heap_alloc(size_t size, vm_acc_t flags, bool phy_alloc, bool contiguous, uint64_t *physicalAddressPtr)
 {
     /* round up the size such that it is a multiple of the page size */
     size = PAGE_ALIGN(size);
-
-    /* find a node that can satisfy the size */
-    heap_node_t *node = find_node(size);
-    if(!node)
-        return node;
-
+	
+	// Allocate physical memory, or just reserve?
     if(phy_alloc)
     {
-        /* change the state to allocated so heap_free releases the frames */
-        node->state = HEAP_ALLOCATED;
-        node->flags = flags;
-
-        /* allocate physical frames and map them into memory */
+        // Contiguous or standard allocation?
 		if(contiguous)
 		{
-			if(!range_alloc_contiguous(node->start, size, flags, physicalAddressPtr))
-				_heap_free((void *) node->start);
+			// Calculate needed amount and possibly wasted space for 1G pages
+			int size4kAmount = size / FRAME_SIZE;
+			int size2mAmount = (size + FRAME_SIZE_2M - 1) / FRAME_SIZE_2M;
+			int size1gAmount = (size + FRAME_SIZE_1G - 1) / FRAME_SIZE_1G;
+			int size1gWasted = size1gAmount * FRAME_SIZE_1G - size;
+			
+			// Very small amount of 4K pages?
+			void *addr;
+			bool tried4k = false;
+			if(size4kAmount <= 8)
+			{
+				// First try 4K allocation, before wasting a larger page
+				addr = _heap_alloc_contiguous(SIZE_4K, size4kAmount, flags, physicalAddressPtr);
+				if(addr)
+					return addr;
+				tried4k = true;
+			}
+			
+			// 1G page allocation acceptable?
+			bool tried1g = false;
+			if(enable1gPages && size1gWasted < TOLERABLE_PAGE_SPACE_WASTE_1G)
+			{
+				// Try 1G
+				addr = _heap_alloc_contiguous(SIZE_1G, size1gAmount, flags, physicalAddressPtr);
+				if(addr)
+					return addr;
+				tried1g = true;
+			}
+
+			// Try 2M
+			addr = _heap_alloc_contiguous(SIZE_2M, size2mAmount, flags, physicalAddressPtr);
+			if(addr)
+				return addr;
+
+			// Try 4K
+			if(!tried4k)
+			{
+				addr = _heap_alloc_contiguous(SIZE_4K, size4kAmount, flags, physicalAddressPtr);
+				if(addr)
+					return addr;
+			}
+
+			// Try 1G again, even if it is bad
+			if(enable1gPages && !tried1g)
+			{
+				addr = _heap_alloc_contiguous(SIZE_1G, size1gAmount, flags, physicalAddressPtr);
+				if(addr)
+					return addr;
+			}
+			
+			// Allocation failed
+			return 0;
 		}
 		else
 		{
+
+			/* find a node that can satisfy the size */
+			heap_node_t *node = find_node(size, FRAME_SIZE);
+			if(!node)
+				return 0;
+			
+			/* allocate physical frames and map them into memory */
 			if(!range_alloc(node->start, size, flags))
-				_heap_free((void *) node->start);
+			{
+				_heap_free((void *)node->start);
+				return 0;
+			}
+			
+			/* change the state to allocated so heap_free releases the frames */
+			node->state = HEAP_ALLOCATED;
+			node->flags = flags;
+			return (void *)((uintptr_t) node + FRAME_SIZE);
 		}
     }
-
-    return (void *) ((uintptr_t) node + FRAME_SIZE);
+	else
+	{
+		/* find a node that can satisfy the size */
+		heap_node_t *node = find_node(size, FRAME_SIZE);
+		if(!node)
+			return 0;
+		return (void *)((uintptr_t)node + FRAME_SIZE);
+	}
 }
 
 void *heap_reserve(size_t size)

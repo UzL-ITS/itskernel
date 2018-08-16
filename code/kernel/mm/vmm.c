@@ -11,6 +11,7 @@
 #include <cpu/features.h>
 #include <stddef.h>
 #include <stdlib/string.h>
+#include <trace/trace.h>
 
 // Does 4 loops using PML4[510] -> Pointer to PML4 itself.
 #define PML4_OFFSET 0xFFFFFF7FBFDFE000
@@ -30,7 +31,6 @@ typedef struct
   size_t pml4e, pml3e, pml2e, pml1e;
 } page_index_t;
 
-static bool vmm_1g_pages;
 static spinlock_t kernel_vmm_lock = SPIN_UNLOCKED;
 
 /* forward declarations of internal vmm functions with no locking */
@@ -103,9 +103,6 @@ static void addr_to_index(page_index_t *index, uintptr_t addr)
 
 void vmm_init(void)
 {
-  /* set 1g support flag */
-  vmm_1g_pages = cpu_feature_supported(FEATURE_1G_PAGE);
-
   /*
    * touch all higher half pml4 entries, this means when we have multiple
    * address spaces, we can easily keep the higher half mapped in exactly the
@@ -267,7 +264,7 @@ static bool _vmm_map(uintptr_t virt, uintptr_t phy, vm_acc_t flags)
 // Assigns the given physical address to the given virtual address by modifying the respective page table entry.
 static bool _vmm_maps(uintptr_t virt, uintptr_t phy, vm_acc_t flags, int size)
 {
-  if (size == SIZE_1G && !vmm_1g_pages)
+  if (size == SIZE_1G && !enable1gPages)
     return false;
 
   if (!_vmm_touch(virt, size))
@@ -536,7 +533,6 @@ void vmm_untouch(uintptr_t virt, int size)
 bool vmm_map_range(uintptr_t virt, uintptr_t phy, size_t len, vm_acc_t flags)
 {
   vmm_lock(virt);
-
   tlb_transaction_init();
   bool ok = _vmm_map_range(virt, phy, len, flags);
   if (ok)

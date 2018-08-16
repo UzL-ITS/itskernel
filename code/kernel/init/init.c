@@ -1,6 +1,7 @@
 #include <trace/trace.h>
 #include <init/cmdline.h>
 #include <trace/stacktrace.h>
+#include <mm/common.h>
 #include <mm/map.h>
 #include <mm/phy32.h>
 #include <mm/pmm.h>
@@ -32,6 +33,9 @@
 #include <vbe/vbe.h>
 #include <io/keyboard.h>
 #include <pci/pci.h>
+
+// Determines whether 1G pages are enabled (from mm/common.h). Is set in init().
+bool enable1gPages;
 
 static void print_banner(void)
 {
@@ -96,6 +100,7 @@ noreturn void init(uint32_t magic, multiboot_t *multiboot)
 
 	/* scan CPU features */
 	cpu_features_init();
+	enable1gPages = cpu_feature_supported(FEATURE_1G_PAGE);
 
 	/* map physical memory */
 	trace_puts("Mapping physical memory...\n");
@@ -104,7 +109,7 @@ noreturn void init(uint32_t magic, multiboot_t *multiboot)
 	/* set up the physical memory manager */
 	trace_puts("Setting up the physical memory manager...\n");
 	pmm_init(map);
-while(1);
+	
 	/* set up the virtual memory manager */
 	trace_puts("Setting up the virtual memory manager...\n");
 	vmm_init();
@@ -114,18 +119,25 @@ while(1);
 	heap_init();
 
 	// Output heap state
-	trace_puts("Heap alloc test...\n");
+	//trace_puts("Heap alloc test...\n");
 	heap_trace();
-	uint64_t phys;
-	void *cont = heap_alloc_contiguous(1024 * 1024 * 1024 + 512 * 1024 * 1024, VM_R, &phys);
+	/*uint64_t phys;
+	uint64_t *cont = heap_alloc_contiguous(1024 * 1024 * 1024 + 512 * 1024 * 1024, VM_R, &phys);
 	if(!cont)
 		trace_puts("cont no allocation");
-	trace_printf("cont at %016x / %016x\n", (uint64_t)cont, phys);
+	else
+	{
+		trace_printf("cont at %016x / %016x\n", (uint64_t)cont, phys);
+		heap_trace();
+		for(int i = 0; i < (1024 * 1024 * 1024 + 512 * 1024 * 1024) / 8; ++i)
+			cont[i] = i;
+		trace_printf("Write test completed.\n");
+		heap_free(cont);
+		trace_printf("Free completed.\n");
+	}
 	heap_trace();
-	heap_free(cont);
-	heap_trace();
-	trace_puts("Heap alloc test complete.\n");
-while(1);
+	trace_puts("Heap alloc test complete.\n");*/
+
 	// Initialize VBE back buffers
 	trace_puts("Initialize VBE back buffers...\n");
 	vbe_init_back_buffers();	
@@ -157,7 +169,7 @@ while(1);
 	panic_init();
 	fault_init();
 	tlb_init();
-	
+
 	// Scan PCI devices
 	pci_init();
 while(1);
