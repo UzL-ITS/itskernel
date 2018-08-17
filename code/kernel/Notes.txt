@@ -1,0 +1,80 @@
+Abkürzungen:
+	BSP: Bootstrap Processor
+	SMP: Symmetric Multi Processing (alle Prozessoren nutzen denselben geteilten Adressraum -> nur Locking nötig, mehr nicht)
+	GDT: Global Descriptor Table
+	LM: Long Mode (64-Bit-Modus)
+	MSR: Model Specific Register
+	TSS: Task State Segment
+	ACPI: Advanced Configuration and Power Interface
+	APIC: Advanced Programmable Interrupt Controller
+	PML: Page Map Level (Table)
+	AP: Application Processor
+	IPI: Interprocessor Interrupt
+	ICR: Interrupt Command Register
+	PIT: Programmable Interval Timer
+	
+
+GS-Basisadresse zeigt im Kernel-Mode auf cpu-Objekt des jeweiligen Kerns (cpu.h)
+	=> Bei Systemaufrufen kann so zwischen User- und Kernel-Stack umgeschaltet werden
+	GS hat scheinbar keinen eigenen Deskriptor, das läuft alles über die IA32_KERNEL_GS_BASE/IA32_GS_BASE MSRs.
+
+ltr-Instruktion: Task-Register::Segment-Selector bekommt einen Index, der auf das entsprechende TSS in der GDT zeigt
+
+Aktuell werden alle Faults als Interrupts behandelt, nicht als Traps
+
+fault_err-Interrupts (mit Error Code auf dem Stack) werden aktuell nicht benutzt
+
+GRUB implementiert Multiboot2, das unter anderem eine Liste mit verfügbaren physikalischen Adressen liefert
+
+Physikalische Zonen:
+	DMA: Alles bis 16 MB (einige Huge Pages, viele normale Pages)
+	DMA32: Alles bis 4 GB (viele Huge Pages)
+	Normal (STD): Alles über 4 GB (einige Large Pages)
+	https://utcc.utoronto.ca/~cks/space/blog/linux/KernelMemoryZones
+
+VMM:
+	64-Bit-Systeme nutzen 4-Level-Paging:
+		Virt. Adressen werden in Index-Blöcke für PML4 bis PML1 und Offset zerlegt
+		Einträge in PML4 zeigen entweder auf 512G-Seiten oder eine PML3-Tabelle, usw.
+		Die linken 16 Bits sind Kopien von Bit 47
+		https://www.cs.uaf.edu/2012/fall/cs301/lecture/11_05_mmap.html
+	PML4: Untere Hälfte ist User Space, obere Hälfte alles andere
+		+--------------------+--------------------+-------------------------------+
+		| start address      | end address        | description                   |
+		+--------------------+--------------------+-------------------------------+
+		| 0x0000000000000000 | 0x00007FFFFFFFFFFF | user-space                    |
+		| 0xFFFF800000000000 | 0xFFFFFEFEFFFF6FFF | kernel heap                   |
+		| 0xFFFFFEFEFFFF7000 | 0xFFFFFEFEFFFFFFFF | physical memory manager stack |
+		| 0xFFFFFEFF00000000 | 0xFFFFFEFFFFFFFFFF | 32-bit physical address space |
+		| 0xFFFFFF0000000000 | 0xFFFFFF7FFFFFFFFF | recursive page tables         |
+		| 0xFFFFFF8000000000 | 0xFFFFFFFFFFFFFFFF | kernel image                  |
+		+--------------------+--------------------+-------------------------------+
+
+Locking:
+	Aktuell werden einfach Interrupts maskiert -> Code läuft so lange ununterbrochen bis Lock freigegeben
+	Bei einem Interrupt wird der Mask-Counter ebenfalls inkrementiert, sodass man nicht ausversehen während der Interrupt-Behandlung diese wieder einschalten kann
+
+Scheduling:
+	Nach Konfigurieren des Start-Kerns (BSP) werden in smp/init.c:smp_init() die einzelnen Kerne ebenfalls initialisiert, welche dann bis zum Start des SMP-Modus in eine aktive Warteschleife gehen
+
+Segmentation:
+	Jeder Prozess hat eine Segments-Liste, anfangs ist der Bereich 0x1000-0x00007FFFFFFFFFFF verfügbar
+	Beim Laden von ELF64-Dateien werden deren Segmente dort allokiert
+	Jeder Thread allokiert ein eigenes Stack-Segment
+
+TODO Nicht Interrupt-basiertes Locking bei VBE und proc verwenden (unnötig)
+
+dlmalloc komplett rauswerfen? Viel zu viel Komplexität, für unsere Zwecke reicht heap_alloc absolut.
+
+Aktuell nur 12 VBE-Kontexte möglich -> max. 12 Prozesse (einschließlich Kernel und Idles?)
+
+sleep-Funktion
+
+Interrupts während syscalls? -> Scheduler könnte aktuellen Thread ändern, während der Systemaufruf läuft
+	Aktuell auskommentiert.
+
+Aktuell nur KeyPress-Messages implementiert; sobald es mehr werden, wird ein gesonderter Message-Loop notwendig.
+
+Netzwerk-Stack: Am besten LWIP im Userspace aufziehen, dann gibt es auch keine Probleme mit (bisher nicht implementierten) Kernel-Threads, den Makefiles usw.
+
+Aktuell ist der Prozess-Heap nicht implementiert, stattdessen wird für jede Allokation ein Segment samt physikalischem Speicher allokiert.
