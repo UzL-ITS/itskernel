@@ -29,8 +29,17 @@ int main()
 		register_keypress_handler(c, &handle_window_switch);
 	printf("OK\n");
 	
-	for(int i = 0; i < 999; ++i)
-		printf("%d\n", i);
+	printf("Alloc test...");
+	uint8_t *mem = sys_heap_alloc(4096);
+	for(int i = 0; i < 4096; ++i)
+		mem[i] = 1;
+	int sum = 0;
+	for(int i = 0; i < 4096; ++i)
+		sum += mem[i];
+	if(sum == 4096)
+		printf("OK\n");
+	else
+		printf("Failed (%d)\n", sum);
 	
 	// test
 	getline();

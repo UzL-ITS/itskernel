@@ -59,3 +59,5 @@ syscallwrapper sys_vbe_set_back_color, 11
 syscallwrapper sys_vbe_allocate_scroll_buffer, 12
 syscallwrapper sys_vbe_set_scroll_position, 13
 syscallwrapper sys_vbe_clear, 14
+syscallwrapper sys_heap_alloc, 15
+syscallwrapper sys_heap_free, 16

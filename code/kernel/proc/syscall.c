@@ -33,6 +33,8 @@ uintptr_t syscall_table[] =
 	/* 12 */ (uintptr_t)&sys_vbe_allocate_scroll_buffer,
 	/* 13 */ (uintptr_t)&sys_vbe_set_scroll_position,
 	/* 14 */ (uintptr_t)&sys_vbe_clear,
+	/* 15 */ (uintptr_t)&sys_heap_alloc,
+	/* 16 */ (uintptr_t)&sys_heap_free,
 };
 uint64_t syscall_table_size = sizeof(syscall_table) / sizeof(*syscall_table);
 

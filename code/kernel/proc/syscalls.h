@@ -52,4 +52,10 @@ void sys_vbe_set_scroll_position(uint32_t y);
 // Clears the buffer with the current background color.
 void sys_vbe_clear();
 
+// Allocates a 4K aligned block of memory of the given size (rounded up to a multiple of 4K).
+void *sys_heap_alloc(int size);
+
+// Frees the given allocated memory.
+void sys_heap_free(void *addr);
+
 #endif
