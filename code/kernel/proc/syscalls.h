@@ -58,4 +58,10 @@ void *sys_heap_alloc(int size);
 // Frees the given allocated memory.
 void sys_heap_free(void *addr);
 
+// Starts a new thread and sets the instruction pointer to the given address.
+void sys_run_thread(uint64_t rip);
+
+// Exits the current thread.
+void sys_exit_thread(cpu_state_t *state);
+	
 #endif

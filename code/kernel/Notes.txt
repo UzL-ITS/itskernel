@@ -58,15 +58,15 @@ Scheduling:
 	Nach Konfigurieren des Start-Kerns (BSP) werden in smp/init.c:smp_init() die einzelnen Kerne ebenfalls initialisiert, welche dann bis zum Start des SMP-Modus in eine aktive Warteschleife gehen
 
 Segmentation:
-	Jeder Prozess hat eine Segments-Liste, anfangs ist der Bereich 0x1000-0x00007FFFFFFFFFFF verfügbar
+	Jeder Prozess hat eine Segments-Liste, anfangs ist der Bereich 0x1000-0x00007FFFFFFFFFFF (lower half) verfügbar
 	Beim Laden von ELF64-Dateien werden deren Segmente dort allokiert
 	Jeder Thread allokiert ein eigenes Stack-Segment
 
 TODO Nicht Interrupt-basiertes Locking bei VBE und proc verwenden (unnötig)
 
-dlmalloc komplett rauswerfen? Viel zu viel Komplexität, für unsere Zwecke reicht heap_alloc absolut.
-
-Aktuell nur 12 VBE-Kontexte möglich -> max. 12 Prozesse (einschließlich Kernel und Idles?)
+Aktuell nur 12 VBE-Kontexte möglich -> max. 12 Prozesse (einschließlich Kernel und Idles)
+	TODO wie verteilt der Scheduler die Threads auf CPUs?
+	Mehr als 1 Prozessor führt zu Hänger in vbe_create_context bei Module Load
 
 sleep-Funktion
 

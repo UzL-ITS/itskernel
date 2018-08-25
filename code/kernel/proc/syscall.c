@@ -35,6 +35,8 @@ uintptr_t syscall_table[] =
 	/* 14 */ (uintptr_t)&sys_vbe_clear,
 	/* 15 */ (uintptr_t)&sys_heap_alloc,
 	/* 16 */ (uintptr_t)&sys_heap_free,
+	/* 17 */ (uintptr_t)&sys_run_thread,
+	/* 18 */ (uintptr_t)&sys_exit_thread,
 };
 uint64_t syscall_table_size = sizeof(syscall_table) / sizeof(*syscall_table);
 
@@ -43,6 +45,7 @@ void syscall_init(void)
   /* unset SYSCALL_DIRECT bit on syscalls which may perform a context switch */
   syscall_table[1]  &= ~SYSCALL_DIRECT;
   syscall_table[2] &= ~SYSCALL_DIRECT;
+  syscall_table[18] &= ~SYSCALL_DIRECT;
 
   /* set the SYSCALL and SYSRET selectors */
   uint64_t star = 0;

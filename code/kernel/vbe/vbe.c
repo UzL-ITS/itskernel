@@ -43,17 +43,17 @@ static uint32_t *renderBuffer;
 // TODO use linked list here eventually
 #define VBE_CONTEXT_COUNT 12
 static vbe_context_t contexts[VBE_CONTEXT_COUNT];
-int currentContext = 0;
+static int currentContext = 0;
 
 // Back buffers of the current drawing context.
 static uint32_t *previousBuffer; // Holds the previously rendered image
 static uint32_t *currentBuffer; // Holds the current image
 
 // Height of the scrollable buffer of the current drawing context.
-uint32_t currentBufferHeight;
+static uint32_t currentBufferHeight;
 
 // Scroll position of the scrollable buffer of the current drawing context.
-uint32_t scrollY;
+static uint32_t scrollY;
 
 // Determines whether context #0 buffers actually point to virtual memory.
 // This is needed since debug outputs might be printed before the memory manager is up.

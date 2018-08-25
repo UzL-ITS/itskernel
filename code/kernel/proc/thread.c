@@ -106,22 +106,18 @@ void thread_kill(thread_t *thread)
    * good.
    */
   thread->state = THREAD_ZOMBIE;
-
-  // TODO we can probably free the user-space stack etc. here?
+  
+  /* free user-space stack */
+  if (!(thread->flags & THREAD_KERNEL))
+    seg_free(thread->stack);
 
   spin_unlock(&thread->lock);
 }
 
 void thread_destroy(thread_t *thread)
 {
-  // TODO need to switch address spaces to be able to free the user-space stack
-
   /* detach thread from parent process */
   proc_thread_remove(thread->proc, thread);
-
-  /* free user-space stack */
-  if (!(thread->flags & THREAD_KERNEL))
-    seg_free(thread->stack);
 
   /* free kernel-space stack */
   free(thread->kstack);

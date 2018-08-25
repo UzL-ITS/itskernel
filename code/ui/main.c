@@ -6,6 +6,7 @@ Kernel UI process main file.
 
 #include <io.h>
 #include <internal/syscall/syscalls.h>
+#include <thread.h>
 
 
 /* FUNCTIONS */
@@ -17,10 +18,18 @@ static void handle_window_switch(vkey_t keyCode, bool shiftPressed)
 	sys_set_displayed_process(keyCode - VKEY_F1);
 }
 
+static void test_thread(void *args)
+{
+	for(int i = 0; i < 2000000000 - (int)args * 100000000; ++i)
+		;
+	printf("thread %p end!\n", args);
+}
+
 int main()
 {
 	// Initialize I/O
 	io_init(1000);
+	threading_init();
 	printf("--- ITS Micro Kernel :: UI PROCESS ---\n");
 	
 	// Install handler for render context switch
@@ -40,6 +49,12 @@ int main()
 		printf("OK\n");
 	else
 		printf("Failed (%d)\n", sum);
+	
+	
+	run_thread(test_thread, 0);
+	run_thread(test_thread, 1);
+	run_thread(test_thread, 2);
+	run_thread(test_thread, 3);
 	
 	// test
 	getline();

@@ -61,3 +61,5 @@ syscallwrapper sys_vbe_set_scroll_position, 13
 syscallwrapper sys_vbe_clear, 14
 syscallwrapper sys_heap_alloc, 15
 syscallwrapper sys_heap_free, 16
+syscallwrapper sys_run_thread, 17
+syscallwrapper sys_exit_thread, 18

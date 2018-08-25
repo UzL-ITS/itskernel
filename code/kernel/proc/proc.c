@@ -28,12 +28,14 @@ static spinlock_t processListLock = SPIN_UNLOCKED;
 proc_t *proc_create(void)
 {
 	// Allocate necessary objects
+	trace_printf("proc_create: malloc\n");
 	proc_t *proc = malloc(sizeof(*proc));
 	struct proc_node_t *procNode = malloc(sizeof(struct proc_node_t));
 	if(!proc || !procNode)
 		return 0;
 
 	// Allocate PML4 table for this process
+	trace_printf("proc_create: pmm_alloc\n");
 	proc->pml4_table = pmm_alloc();
 	if(!proc->pml4_table)
 	{
@@ -43,6 +45,7 @@ proc_t *proc_create(void)
 	}
 
 	// Initialize PML4 table with higher-half kernel-space entries
+	trace_printf("proc_create: vmm_init_pml4\n");
 	if(!vmm_init_pml4(proc->pml4_table))
 	{
 		pmm_free(proc->pml4_table);
@@ -52,6 +55,7 @@ proc_t *proc_create(void)
 	}
 
 	// Initialize process virtual memory
+	trace_printf("proc_create: seg_init\n");
 	proc->vmm_lock = SPIN_UNLOCKED;
 	if(!seg_init(&proc->segments))
 	{
@@ -62,9 +66,11 @@ proc_t *proc_create(void)
 	}
 
 	// Create VBE context for this process
+	trace_printf("proc_create: vbe_create_context\n");
 	proc->vbeContext = vbe_create_context();
 
 	// Initialize empty message queue
+	trace_printf("proc_create: lists\n");
 	list_init(&proc->messageQueue);
 
 	// Initialize empty thread list
