@@ -12,6 +12,10 @@ ITS kernel keyboard handling.
 
 /* DECLARATIONS */
 
+// Initialize the keyboard (starts the receiver thread).
+// Called internally.
+void keyboard_init();
+
 // Returns the key code of the next key press.
 // If the optional parameter shiftPressed is valid (not 0), the value of the shift modifier key is stored in there.
 // This call is blocking.

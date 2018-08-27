@@ -26,7 +26,7 @@ typedef void (*keypress_handler_t)(vkey_t keyCode, bool shiftPressed);
 /* DECLARATIONS */
 
 // Initializes the I/O interface and creates a terminal with the given amount of lines.
-// Must be called by the user, before any input/output is performed.
+// Is called internally by the _start function.
 void io_init(int lines);
 
 // Reads a line from keyboard input.

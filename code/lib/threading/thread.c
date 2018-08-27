@@ -4,8 +4,8 @@ ITS kernel standard library threading functionality.
 
 /* INCLUDES */
 
-#include <thread.h>
-#include <lock.h>
+#include <threading/thread.h>
+#include <threading/lock.h>
 #include <internal/syscall/syscalls.h>
 
 

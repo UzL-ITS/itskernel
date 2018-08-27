@@ -4,7 +4,7 @@ ITS kernel standard library locking functions.
 
 /* INCLUDES */
 
-#include <lock.h>
+#include <threading/lock.h>
 
 
 /* VARIABLES */

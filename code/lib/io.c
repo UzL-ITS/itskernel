@@ -29,6 +29,9 @@ void io_init(int lines)
 	if(initDone)
 		return;
 	
+	// Initialize keyboard
+	keyboard_init();
+	
 	// Initialize terminal
 	terminal_init(lines);
 	
@@ -51,6 +54,7 @@ char *getline()
 		else if(key_is_printable_character(key))
 		{
 			// TODO
+			printf("%c", key_to_character(key, shiftPressed));
 		}
 		else if(keypressHandlers[key] != 0)
 		{
