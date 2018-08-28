@@ -85,3 +85,39 @@ bool is_digit(char c)
 {
 	return ('0' <= c && c <= '9');
 }
+
+int strcmp(const char *str1, const char *str2)
+{
+	// Do unsigned comparison
+	const unsigned char *s1 = (const unsigned char *)str1;
+	const unsigned char *s2 = (const unsigned char *)str2;
+
+	// Compare character-wise; if *s2 == 0, the loop will exit
+	while(*s1 && (*s1 == *s2))
+	{
+		++s1;
+		++s2;
+	}
+	return *s1 - *s2;
+}
+
+int strncmp(const char *str1, const char *str2, int n)
+{
+	// Do unsigned comparison
+	const unsigned char *s1 = (const unsigned char *)str1;
+	const unsigned char *s2 = (const unsigned char *)str2;
+	
+	// Compare character-wise; if *s2 == 0, the loop will exit
+    while(n && *s1 && (*s1 == *s2))
+    {
+        ++s1;
+        ++s2;
+        --n;
+    }
+	
+	// Length >= n and all characters equal?
+    if(n == 0)
+        return 0;
+    else
+        return *s1 - *s2;
+}

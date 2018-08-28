@@ -33,3 +33,9 @@ char *itoa(uint64_t value, char *str, int base);
 
 // Returns whether the given char is an ASCII digit (0-9).
 bool is_digit(char c);
+
+// Compares the given strings and returns 0 if they are equal.
+int strcmp(const char *str1, const char *str2);
+
+// Compares the first n characters of the given strings and returns 0 if they are equal.
+int strncmp(const char *str1, const char *str2, int n);

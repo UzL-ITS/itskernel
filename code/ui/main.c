@@ -10,6 +10,8 @@ Kernel UI process main file.
 #include <threading/thread.h>
 #include <internal/keyboard/keyboard.h>
 #include <memory.h>
+#include <stdbool.h>
+#include <string.h>
 
 
 /* FUNCTIONS */
@@ -35,25 +37,25 @@ void main()
 		register_keypress_handler(c, &handle_window_switch);
 	printf("OK\n");
 	
-	printf("Alloc test...");
-	uint8_t *mem = sys_heap_alloc(4096);
-	for(int i = 0; i < 4096; ++i)
-		mem[i] = 1;
-	int sum = 0;
-	for(int i = 0; i < 4096; ++i)
-		sum += mem[i];
-	if(sum == 4096)
-		printf("OK\n");
-	else
-		printf("Failed (%d)\n", sum);
-	
-	printf("Type something: ");
-	char *input = getline();
-	printf("You typed \"%s\"\n", input);
-	free(input);
-	
-	printf("Done.\n");
+	// Command loop
+	while(true)
+	{
+		// Print command line string
+		printf("\nitskernel$ ");
+		char *command = getline();
+		int commandLength = strlen(command);
+		
+		// Handle command
+		if(strncmp(command, "exit", 4) == 0)
+			break;
+		else
+			printf("Unknown command.\n");
+		
+		// Free command string
+		free(command);
+	}
 		
 	// Exit with return code
+	printf("Exiting...\n");
 	_end(0);
 }
