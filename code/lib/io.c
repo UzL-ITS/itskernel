@@ -5,20 +5,17 @@ ITS kernel standard library I/O interface.
 /* INCLUDES */
 
 #include <io.h>
-#include <stdarg.h>
 #include <stdbool.h>
 #include <internal/keyboard/keyboard.h>
 #include <internal/terminal/terminal.h>
 #include <string.h>
+#include <memory.h>
 
 
 /* VARIABLES */
 
 // Determines whether initialization has completed.
 static bool initDone = false;
-
-// The keypress handler for each key code.
-static keypress_handler_t keypressHandlers[VKEY_MAX_VALUE + 1] = { 0 };
 
 
 /* FUNCTIONS */
@@ -45,38 +42,50 @@ char *getline()
 	if(!initDone)
 		return 0;
 	
+	// Temporary buffer for input characters
+	char inputBuffer[2048];
+	size_t inputSize = 0;
+	
+	// Read key presses until ENTER is encountered
 	while(true)
 	{
+		// Read next key press
 		bool shiftPressed;
 		vkey_t key = receive_keypress(&shiftPressed);
-		if(key_is_navigation_key(key))
-			terminal_handle_navigation_key(key);
-		else if(key_is_printable_character(key))
+		
+		// Modify buffer depending on key code
+		if(key_is_printable_character(key))
 		{
-			// TODO
-			printf("%c", key_to_character(key, shiftPressed));
+			// Add printable character to input buffer and show it on the terminal
+			if(inputSize < sizeof(inputBuffer))
+			{
+				char keyChar = key_to_character(key, shiftPressed);
+				inputBuffer[inputSize++] = keyChar;
+				terminal_putc(keyChar);
+			}
 		}
-		else if(keypressHandlers[key] != 0)
+		else if(key == VKEY_ENTER)
 		{
-			keypressHandlers[key](key, shiftPressed);
+			// Print line break
+			terminal_putc('\n');
+			
+			// Copy line string into return array
+			char *line = malloc(inputSize + 1);
+			memcpy(line, inputBuffer, inputSize);
+			line[inputSize] = '\0';
+			return line;
+		}
+		else if(key == VKEY_BACKSPACE)
+		{
+			// Remove last character from buffer and terminal
+			// TODO (low priority) this will produce buggy terminal output since terminal_putc can only
+			//      remove characters from the current terminal line, causing problems with line wrapping
+			if(inputSize > 0)
+			{
+				inputBuffer[--inputSize] = '\0';
+				terminal_putc('\b');
+			}
 		}
 	}
 	return 0;
-}
-
-bool register_keypress_handler(vkey_t keyCode, keypress_handler_t handler)
-{
-	// Handler slot empty?
-	if(keypressHandlers[keyCode] != 0)
-		return false;
-	
-	// Install handler
-	keypressHandlers[keyCode] = handler;
-	return true;
-}
-
-void unregister_keypress_handler(vkey_t keyCode)
-{
-	// Uninstall handler
-	keypressHandlers[keyCode] = 0;
 }

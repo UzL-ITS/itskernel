@@ -14,8 +14,17 @@ TODO add real malloc implementation like dlmalloc or ptmalloc3
 
 /* DECLARATIONS */
 
+// Allocates memory of arbitrary size on the heap.
+void *malloc(int size);
+
+// Frees memory allocated by malloc().
+void free(void *memory);
+
 // Allocates memory on the heap. The size is always a multiple of 4096 Bytes (4 KB).
 void *heap_alloc(int size);
 
-// Frees an allocated heap memory block.
+// Frees memory allocated by heap_alloc().
 void heap_free(void *memory);
+
+// Copies memory from source to destination. The arrays must not intersect!
+void memcpy(void *destination, const void *source, int length);

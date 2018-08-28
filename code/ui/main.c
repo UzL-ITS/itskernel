@@ -8,6 +8,8 @@ Kernel UI process main file.
 #include <io.h>
 #include <internal/syscall/syscalls.h>
 #include <threading/thread.h>
+#include <internal/keyboard/keyboard.h>
+#include <memory.h>
 
 
 /* FUNCTIONS */
@@ -45,9 +47,12 @@ void main()
 	else
 		printf("Failed (%d)\n", sum);
 	
+	printf("Type something: ");
+	char *input = getline();
+	printf("You typed \"%s\"\n", input);
+	free(input);
 	
-	// test
-	getline();
+	printf("Done.\n");
 		
 	// Exit with return code
 	_end(0);

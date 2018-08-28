@@ -14,6 +14,7 @@ is doubled each time it overflows.
 #include <threading/lock.h>
 #include <stdint.h>
 #include <memory.h>
+#include <internal/terminal/terminal.h>
 
 
 /* TYPES */
@@ -53,6 +54,9 @@ static queue_element_t *queue;
 // Queue raw buffer size.
 static int queueBufferSize;
 
+// The keypress handler for each key code.
+static keypress_handler_t keypressHandlers[VKEY_MAX_VALUE + 1] = { 0 };
+
 
 /* FORWARD DECLARATIONS */
 
@@ -83,8 +87,22 @@ static void keyboard_thread(void *args)
 		msg_key_press_t msg;
 		sys_next_message(&msg.header);
 		
-		// Add key press to queue
-		queue_add_element(msg.keyCode, msg.shiftModifier);
+		// Handle key press depending on type
+		if(key_is_navigation_key(msg.keyCode))
+		{
+			// Pass navigation key press to terminal directly
+			terminal_handle_navigation_key(msg.keyCode);
+		}
+		else if(keypressHandlers[msg.keyCode] != 0)
+		{
+			// There is a special handler for this key, so call it
+			keypressHandlers[msg.keyCode](msg.keyCode, msg.shiftModifier);
+		}
+		else
+		{
+			// Add key press to queue
+			queue_add_element(msg.keyCode, msg.shiftModifier);
+		}
 	}
 }
 
@@ -229,4 +247,21 @@ static bool queue_retrieve(vkey_t *keyCode, bool *shiftPressed)
 	// Unlock queue
 	mutex_release(&queueMutex);
 	return true;
+}
+
+bool register_keypress_handler(vkey_t keyCode, keypress_handler_t handler)
+{
+	// Handler slot empty?
+	if(keypressHandlers[keyCode] != 0)
+		return false;
+	
+	// Install handler
+	keypressHandlers[keyCode] = handler;
+	return true;
+}
+
+void unregister_keypress_handler(vkey_t keyCode)
+{
+	// Uninstall handler
+	keypressHandlers[keyCode] = 0;
 }
