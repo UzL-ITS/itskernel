@@ -109,6 +109,32 @@ namespace itskernel_server
                                 break;
                             }
 
+                            case "sendout":
+                            {
+                                // Receive file name
+                                Console.WriteLine($"    Receiving file name...");
+                                string fileName = connReader.ReadLine();
+                                Console.WriteLine($"    File name is \"{ fileName }\"");
+
+                                // Receive file length
+                                Console.WriteLine($"    Receiving file size...");
+                                int fileLength = int.Parse(connReader.ReadLine());
+                                Console.WriteLine($"    File size is \"{ fileLength }\"");
+
+                                // Receive file
+                                Console.WriteLine($"    Receiving file...");
+                                byte[] file = new byte[fileLength];
+                                int receivedBytes = 0;
+                                while(receivedBytes < fileLength)
+                                    receivedBytes += connReader.BaseStream.Read(file, receivedBytes, fileLength - receivedBytes);
+
+                                // Save file
+                                Console.WriteLine($"    Saving file...");
+                                File.WriteAllBytes(Path.Combine(outDirectory, fileName), file);
+
+                                break;
+                            }
+
                             default:
                             {
                                 // Ignore
