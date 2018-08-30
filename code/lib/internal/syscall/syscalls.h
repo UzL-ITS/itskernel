@@ -64,3 +64,16 @@ void sys_run_thread(uint64_t rip);
 
 // Exits the current thread.
 void sys_exit_thread();
+
+// Returns the amount of elapsed milliseconds since system start.
+uint64_t sys_get_elapsed_milliseconds();
+
+// Returns the network card's MAC address in the given buffer of size 6.
+void sys_get_network_mac_address(uint8_t *macBuffer);
+
+// Checks for a new received network packet; if one is present, it is copied into the given buffer and its length is returned.
+// The buffer should have the size of the device's MTU.
+int sys_receive_network_packet(uint8_t *packetBuffer);
+
+// Sends the given network packet.
+void sys_send_network_packet(uint8_t *packet, int packetLength);

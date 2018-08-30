@@ -58,6 +58,9 @@ typedef struct cpu
   /* number of APIC ticks per millisecond */
   uint32_t apic_ticks_per_ms;
 
+  // Total amount of elapsed milliseconds since the scheduler was started on this CPU (accurate to around 10ms).
+  uint64_t elapsedMsSinceStart;
+  
   /* flags indicating if LINTn should be programmed as NMIs */
   bool apic_lint_nmi[2];
 } cpu_t;
@@ -67,6 +70,11 @@ extern list_t cpu_list;
 void cpu_bsp_init(void);
 bool cpu_ap_init(cpu_lapic_id_t lapic_id, cpu_acpi_id_t acpi_id);
 void cpu_ap_install(cpu_t *cpu);
+
+// Returns the current processor data.
 cpu_t *cpu_get(void);
+
+// Returns the bootstrap processor data.
+cpu_t *cpu_get_bsp();
 
 #endif

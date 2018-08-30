@@ -7,7 +7,12 @@ Intel 8254x ethernet driver.
 #include <mm/mmio.h>
 #include <panic/panic.h>
 #include <stdlib/stdlib.h>
+#include <stdlib/string.h>
 #include <mm/heap.h>
+#include <cpu/pause.h>
+
+// Maximum Transmission Unit (this value is slightly arbitrary, it matches the value used in the user-space LWIP wrapper).
+#define I8254X_MTU 1522
 
 // Device register offsets.
 typedef enum
@@ -57,7 +62,29 @@ typedef enum
 	I8254X_REG_MTA = 0x5200, // Multicast Table Array
 	I8254X_REG_RAL = 0x5400, // Receive Address Low
 	I8254X_REG_RAH = 0x5404, // Receive Address High
+	
+	I8254X_REG_GPRC = 0x4074, // Good Packets Received Count
+	I8254X_REG_BPRC = 0x4078, // Broadcast Packets Received Count
+	I8254X_REG_MPRC = 0x407C, // Multicast Packets Received Count
 } intel8254x_register_t;
+
+// Interrupt types.
+typedef enum
+{
+	I8254X_INTR_TXDW = 0x0001,
+	I8254X_INTR_TXQE = 0x0002,
+	I8254X_INTR_LSC = 0x0004,
+	I8254X_INTR_RXSEQ = 0x0008,
+	I8254X_INTR_RXDMT0 = 0x0010,
+	I8254X_INTR_RXO = 0x0040,
+	I8254X_INTR_RXT0 = 0x0080,
+	I8254X_INTR_MDAC = 0x0200,
+	I8254X_INTR_RXCFG = 0x0400,
+	I8254X_INTR_PHYINT = 0x1000,
+	I8254X_INTR_GDISDP6 = 0x2000,
+	I8254X_INTR_GDISDP7 = 0x4000,
+	I8254X_INTR_TXDLOW = 0x8000
+} intel8254x_interrupt_t;
 
 // Structure of receive descriptors.
 typedef struct
@@ -106,6 +133,19 @@ typedef struct
 	uint16_t special;
 } __attribute__((__packed__)) tx_desc_t;
 
+// Structure of a receive packet list entry.
+typedef struct received_packet_s
+{
+	// The next received packet list entry.
+	struct received_packet_s *next;
+	
+	// The length of the received packet.
+	int length;
+	
+	// Packet data
+	uint8_t packet[I8254X_MTU];
+} received_packet_t;
+
 
 // Pointer to BAR0 MMIO memory.
 static uint8_t *deviceBar0Memory;
@@ -121,7 +161,7 @@ static uint8_t macAddress[6];
 static rx_desc_t *rxDescriptors;
 
 // Virtual base address of the receive buffer memory.
-#define RX_BUFFER_SIZE 8192
+#define RX_BUFFER_SIZE 2048
 static uint8_t *rxBufferMem;
 
 // Pointer to the transmit descriptor ring buffer.
@@ -129,8 +169,22 @@ static uint8_t *rxBufferMem;
 static tx_desc_t *txDescriptors;
 
 // Virtual base address of the transmit buffer memory.
-#define TX_BUFFER_SIZE 8192
+#define TX_BUFFER_SIZE 2048
 static uint8_t *txBufferMem;
+
+// The current receive buffer tail.
+static int rxTail;
+
+// The current send buffer tail.
+static int txTail;
+
+// Start and end nodes of the received packets queue.
+// The first element is the oldest, the last the newest (FIFO).
+static received_packet_t *receivedPacketsQueueStart;
+static received_packet_t *receivedPacketsQueueEnd;
+
+// Start node of the received packets buffer list.
+static received_packet_t *receivedPacketsBufferListStart;
 
 
 // Reads the given device register using MMIO.
@@ -194,13 +248,13 @@ void intel8254x_init(pci_cfgspace_header_0_t *deviceCfgSpaceHeader)
 	
 	// Interrupt throttling: Wait 1000 * 256ns = 256us between interrupts
 	// TODO adjust this for performance optimization
-	intel8254x_write(I8254X_REG_ITR, 1000);
-	
-	// TXCW nötig??
+	//intel8254x_write(I8254X_REG_ITR, 1000);
+	intel8254x_write(I8254X_REG_ITR, 0);
+	// TODO is disabled for now to simplify receive packet handling logic - else the interrupt handler needed to process multiple packets at once
 	
 	// Device control register
 	uint32_t ctrl = intel8254x_read(I8254X_REG_CTRL);
-	//ctrl &= ~0x00000008; // LRST = 0 (disable reset)
+	ctrl &= ~0x00000008; // LRST = 0 (disable reset)
 	ctrl |=  0x00000020; // ASDE = 1 (auto speed detection enable)
 	ctrl |=  0x00000040; // SLU = 1 (set link up)
 	intel8254x_write(I8254X_REG_CTRL, ctrl);
@@ -236,6 +290,7 @@ void intel8254x_init(pci_cfgspace_header_0_t *deviceCfgSpaceHeader)
 	intel8254x_write(I8254X_REG_RDLEN, RX_DESC_COUNT * sizeof(rx_desc_t));
 	intel8254x_write(I8254X_REG_RDH, 0);
 	intel8254x_write(I8254X_REG_RDT, RX_DESC_COUNT - 1);
+	rxTail = RX_DESC_COUNT - 1;
 	
 	// Allocate transmit data buffer
 	uint64_t txBufferMemPhy;
@@ -253,7 +308,11 @@ void intel8254x_init(pci_cfgspace_header_0_t *deviceCfgSpaceHeader)
 		// Initialize descriptor
 		tx_desc_t *currDesc = &txDescriptors[i];
 		currDesc->address = txBufferMemPhy + i * TX_BUFFER_SIZE;
+		currDesc->length = 0;
 		currDesc->status = 0;
+		currDesc->cso = 0;
+		currDesc->css = 0;
+		currDesc->special = 0;
 	}
 	
 	// Pass transmit descriptor buffer
@@ -264,6 +323,7 @@ void intel8254x_init(pci_cfgspace_header_0_t *deviceCfgSpaceHeader)
 	intel8254x_write(I8254X_REG_TDLEN, TX_DESC_COUNT * sizeof(tx_desc_t));
 	intel8254x_write(I8254X_REG_TDH, 0);
 	intel8254x_write(I8254X_REG_TDT, 0);
+	txTail = 0;
 	
 	// Transmit IPG: Use recommended values 10, 8 and 6
 	intel8254x_write(I8254X_REG_TIPG, (6 << 20) | (8 << 10) | 10);
@@ -277,41 +337,199 @@ void intel8254x_init(pci_cfgspace_header_0_t *deviceCfgSpaceHeader)
 	tctl |= 0x01000000; // RTLC (Re-transmit on Late Collision)
 	intel8254x_write(I8254X_REG_TCTL, tctl);
 	
-	// Set receiver and transmitter control registers to start networking
+	// Enable receiver
 	uint32_t rctl = 0;
 	rctl |= 0x00000002; // EN (Receiver Enable)
 	rctl |= 0x00000004; // SBP (Store Pad Packets)
-	rctl |= 0x00000020; // LPE (Long Packet Reception Enable)
+	//rctl |= 0x00000020; // LPE (Long Packet Reception Enable)   -> MTU is set to 1522, thus we don't use this feature
 	rctl |= 0x00008000; // BAM (Broadcast Accept Mode)
-	rctl |= 0x00020000; // BSIZE = 8192 (Receive Buffer Size)
-	rctl |= 0x02000000; // BSEX (Buffer Size Extension)
+	rctl |= 0x00000000; // BSIZE = 2048 (Receive Buffer Size)
+	//rctl |= 0x02000000; // BSEX (Buffer Size Extension)
 	rctl |= 0x04000000; // SECRC (Strip Ethernet CRC)
-	rctl |= 0x00000018; // UPE+MPE (Promiscuous mode) -> TODO for testing only!
+	//rctl |= 0x00000018; // UPE+MPE (Promiscuous mode)           -> for testing only!
 	intel8254x_write(I8254X_REG_RCTL, rctl);
 	
-	int rxTail = 0;
-	trace_printf("Up!\n");
-	while(1)
+	// Pre-allocate some buffers for the received packets list
+	receivedPacketsQueueStart = 0;
+	receivedPacketsQueueEnd = 0;
+	receivedPacketsBufferListStart = 0;
+	for(int i = 0; i < RX_DESC_COUNT; ++i)
 	{
-		if(rxDescriptors[rxTail].status & 1)
-		{
-			uint8_t *packetData = &rxBufferMem[rxTail * RX_BUFFER_SIZE];
-			int packetLength = rxDescriptors[rxTail].length;
-			trace_printf("Received descriptor with length %d\n", packetLength);
-			trace_printf("First bytes: ");
-			for(int i = 0; i < 32; ++i)
-				trace_printf("%02x ", packetData[i]);
-			trace_printf("...\n");
-			
-			++rxTail;
-			
-			if(rxTail == TX_DESC_COUNT)
-				while(1);
-			
-			// TODO Update tail, reset status
-		}
+		// Allocate buffer entry
+		received_packet_t *bufferEntry = (received_packet_t *)malloc(sizeof(received_packet_t));
+		
+		// Set pointers
+		bufferEntry->next = receivedPacketsBufferListStart;
+		receivedPacketsBufferListStart = bufferEntry;
 	}
 	
-	// Enable all interrupt types
-	// TODO
+	// Enable all interrupts
+	intel8254x_write(I8254X_REG_IMS, 0x1F6DC);
+	
+	trace_printf("Network driver initialized.\n");
+}
+
+void intel8254x_get_mac_address(uint8_t *macBuffer)
+{
+	// Copy MAC address
+	for(int i = 0; i < 6; ++i)
+		macBuffer[i] = macAddress[i];
+}
+
+void intel8254x_send(uint8_t *packet, int packetLength)
+{
+	trace_printf("Sending packet with length %d\n", packetLength);
+	/*trace_printf("First bytes: ");
+	int debugLen = (packetLength > 32 ? 32 : packetLength);
+	for(int i = 0; i < debugLen; ++i)
+		trace_printf("%02x ", packet[i]);
+	trace_printf("...\n");*/
+	
+	// Wait until descriptor at current tail is unused
+	tx_desc_t *desc = &txDescriptors[txTail];
+	if(desc->length)
+		while(!(desc->status & 0xF)) // Catches "descriptor done" (DD) and various errors
+			pause_once();
+	//trace_printf("Exit send wait loop\n");
+	
+	// Copy packet data
+	memcpy(&txBufferMem[txTail * TX_BUFFER_SIZE], packet, packetLength);
+	desc->length = packetLength;
+	desc->command = 0x8 | 0x2 | 0x1; // RS (Report Status), IFCS (Insert FCS), EOP (End Of Packet)
+	desc->cso = 0;
+	desc->status = 0;
+	desc->css = 0;
+	desc->special = 0;
+	
+	// Update tail
+	++txTail;
+	if(txTail == TX_DESC_COUNT)
+		txTail = 0;
+	intel8254x_write(I8254X_REG_TDT, txTail);
+	
+	trace_printf("Passing packet to device done.\n");
+}
+
+// Processes one received packet.
+// TODO use ITR (interrupt throttling register) to fire interrupts for multiple packets at once (less interrupts)
+static void intel8254x_receive()
+{
+	// Receive multiple packets
+	for(int p = 0; p < RX_DESC_COUNT; ++p)
+	{
+		// Packet received?
+		int newRxTail = rxTail + 1;
+		if(newRxTail == RX_DESC_COUNT)
+			newRxTail = 0;
+		if(rxDescriptors[newRxTail].status & 1)
+		{
+			// Retrieve packet
+			uint8_t *packet = &rxBufferMem[newRxTail * RX_BUFFER_SIZE];
+			int packetLength = rxDescriptors[newRxTail].length;
+			
+			trace_printf("Received descriptor with length %d\n", packetLength);
+			/*trace_printf("First bytes: ");
+			int debugLen = (packetLength > 32 ? 32 : packetLength);
+			for(int i = 0; i < debugLen; ++i)
+				trace_printf("%02x ", packet[i]);
+			trace_printf("...\n");*/
+			
+			// Errors?
+			if(rxDescriptors[newRxTail].errors)
+				trace_printf("Error byte in descriptor: %02x\n", rxDescriptors[newRxTail].errors);
+			else if(packetLength > I8254X_MTU)
+				panic("Received packet size %d exceeds assumed MTU %d!\n", packetLength, I8254X_MTU);
+			else
+			{
+				// Allocate a receive buffer list entry
+				// TODO locking should not be necessary here, since system calls and interrupts are mutually exclusive? Check this!
+				received_packet_t *bufferEntry;
+				if(receivedPacketsBufferListStart)
+				{
+					// Use pre-allocated buffer entry
+					bufferEntry = receivedPacketsBufferListStart;
+					receivedPacketsBufferListStart = bufferEntry->next;
+				}
+				else
+				{
+					// Allocate new buffer entry
+					bufferEntry = (received_packet_t *)malloc(sizeof(received_packet_t));
+				}
+				
+				// Copy data
+				bufferEntry->length = packetLength;
+				memcpy(bufferEntry->packet, packet, packetLength);
+				
+				// Insert entry into list
+				if(!receivedPacketsQueueStart)
+					receivedPacketsQueueStart = bufferEntry;
+				if(receivedPacketsQueueEnd)
+					receivedPacketsQueueEnd->next = bufferEntry;
+				receivedPacketsQueueEnd = bufferEntry;
+				bufferEntry->next = 0;
+			}
+			
+			// Reset status
+			rxDescriptors[newRxTail].status = 0;
+			
+			// Update receive tail
+			rxTail = newRxTail;
+			intel8254x_write(I8254X_REG_RDT, rxTail);
+		}
+		else
+			break; // No more received packets
+	}
+}
+
+int intel8254x_next_received_packet(uint8_t *packetBuffer)
+{
+	// TODO locking should not be necessary here, since system calls and interrupts are mutually exclusive? Check this!
+	
+	// Any packet available?
+	if(!receivedPacketsQueueStart)
+		return 0;
+	
+	// Remove packet buffer entry from queue
+	received_packet_t *bufferEntry = receivedPacketsQueueStart;
+	receivedPacketsQueueStart = bufferEntry->next;
+	if(!receivedPacketsQueueStart)
+		receivedPacketsQueueEnd = 0;
+	
+	// Copy entry contents
+	int packetLength = bufferEntry->length;
+	memcpy(packetBuffer, bufferEntry->packet, packetLength);
+	
+	// Mark buffer as free
+	bufferEntry->next = receivedPacketsBufferListStart;
+	receivedPacketsBufferListStart = bufferEntry;
+	
+	// Done
+	return packetLength;
+}
+
+bool intel8254x_handle_interrupt(cpu_state_t *state)
+{
+	// Read interrupt cause register
+	uint32_t icr = intel8254x_read(I8254X_REG_ICR);
+	if(!icr)
+		return false;
+	
+	// Handle set interrupts
+	trace_printf("Intel8254x interrupt! ICR: %08x\n", icr);
+	if(icr & I8254X_INTR_RXT0)
+	{
+		// Receive timer expired, handle received packets
+		intel8254x_receive();
+	}
+	return true;
+}
+
+void debug()
+{
+	// TODO remove function from scheduler
+	/*trace_printf("Counters: %d %d %d\n",
+		intel8254x_read(I8254X_REG_GPRC),
+		intel8254x_read(I8254X_REG_BPRC),
+		intel8254x_read(I8254X_REG_MPRC)
+	);*/
 }

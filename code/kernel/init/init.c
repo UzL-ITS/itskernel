@@ -169,10 +169,6 @@ noreturn void init(uint32_t magic, multiboot_t *multiboot)
 	panic_init();
 	fault_init();
 	tlb_init();
-
-	// Scan PCI devices
-	// TODO implement network stack
-	//pci_init();
 	
 	/* set up idle process, this must be done before we are in SMP mode */
 	idle_init();
@@ -186,6 +182,10 @@ noreturn void init(uint32_t magic, multiboot_t *multiboot)
 
 	/* set up NMI routing, this must be done when we are in SMP mode */
 	nmi_init();
+
+	// Scan PCI devices
+	// TODO implement network stack
+	pci_init();
 	
 	// Initialize I/O devices
 	keyboard_init();

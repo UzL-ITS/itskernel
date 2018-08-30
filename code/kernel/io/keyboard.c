@@ -26,7 +26,7 @@ static void _handle_key_press(cpu_state_t *state)
 	// TODO add support for extended scan codes (E0)
 	// TODO add support for modifiers -> add fields to messages
 	uint8_t scanCode = inb(0x60);
-	trace_printf("Scan code 0x%02x\n", scanCode);
+	//trace_printf("Scan code 0x%02x\n", scanCode);
 	
 	// Check scan code type
 	vkey_t keyCode = VKEY_INVALID;

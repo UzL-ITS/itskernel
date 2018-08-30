@@ -274,3 +274,4 @@ code/kernel/itskernel
 code/kernel/itskernel.asm
 *.vdi
 *.a
+/code/ui/net/lwip/doc/*

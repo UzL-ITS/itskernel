@@ -46,3 +46,8 @@ void cpu_ap_install(cpu_t *cpu)
   msr_write(MSR_GS_BASE, (uint64_t) cpu);
   msr_write(MSR_GS_KERNEL_BASE, (uint64_t) cpu);
 }
+
+cpu_t *cpu_get_bsp()
+{
+	return &cpu_bsp;
+}

@@ -63,3 +63,7 @@ syscallwrapper sys_heap_alloc, 15
 syscallwrapper sys_heap_free, 16
 syscallwrapper sys_run_thread, 17
 syscallwrapper sys_exit_thread, 18
+syscallwrapper sys_get_elapsed_milliseconds, 19
+syscallwrapper sys_get_network_mac_address, 20
+syscallwrapper sys_receive_network_packet, 21
+syscallwrapper sys_send_network_packet, 22

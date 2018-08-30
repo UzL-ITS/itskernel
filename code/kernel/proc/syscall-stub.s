@@ -18,7 +18,9 @@ syscall_stub:
   ; it is safe for to re-enable interrupts now, for information about the
   ; race condition see syscall.c where the SYSCALL flags mask is set
   ; TODO check if scheduler interrupts during syscalls can break things
+  ;      currently we just increase the intr_mask_count such that interrupts aren't accidentally re-enabled during syscall handling
   ;sti
+  inc qword [gs:8]
 
   ; preserve RCX and R11, these are used by SYSCALL/SYSRET
   push rcx
@@ -63,11 +65,12 @@ syscall_stub:
 
   ; mask interrupts again, for the same race condition reasons
   ;cli
+  dec qword [gs:8]
 
   ; switch back to the user stack
   mov r12, [gs:16]   ; find current thread_t
   mov rsp, [r12 + 8] ; load original RSP from thread->syscall_rsp
-
+ 
   ; switch the GS base to the user's
   swapgs
 

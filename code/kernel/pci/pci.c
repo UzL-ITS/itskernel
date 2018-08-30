@@ -10,6 +10,7 @@ PCI driver.
 #include <stdlib/stdlib.h>
 #include <panic/panic.h>
 #include <intr/route.h>
+#include <cpu/state.h>
 #include <net/intel8254x.h>
 
 // Represents one discovered PCI device.
@@ -51,10 +52,14 @@ static uint32_t get_number_of_lowest_set_bit(uint32_t value)
 	return pos;
 }
 
-// Handles 
+// Handles PCI interrupts.
 static void _handle_pci_interrupt(cpu_state_t *state)
 {
-	trace_printf("Received PCI interrupt.\n");
+	//trace_printf("Received PCI interrupt.\n");
+	
+	// Pass interrupt to responsible device
+	intel8254x_handle_interrupt(state);
+	//trace_printf("PCI interrupt handle end.\n");
 }
 
 // Prints the BAR configuration of the given device.

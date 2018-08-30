@@ -2,19 +2,35 @@
 ARCH := x86_64-pc-elf
 
 CC := $(ARCH)-gcc
-CFLAGS := -std=c1x -O3 -Wall -Wextra -Wno-unused-parameter -pedantic -I. -I../lib -ffreestanding -mno-red-zone -mcmodel=small -mno-sse -mno-sse2 -mno-sse3 -mno-3dnow -mno-mmx -g
+CFLAGS := -std=c1x \
+		  -O3 \
+		  -Wall \
+		  -Wextra \
+		  -Wno-unused-parameter \
+		  -pedantic \
+		  -I. \
+		  -I../lib \
+		  -ffreestanding \
+		  -mno-red-zone \
+		  -mcmodel=small \
+		  -mno-sse \
+		  -mno-sse2 \
+		  -mno-sse3 \
+		  -mno-3dnow \
+		  -mno-mmx \
+		  -g
 
 AS := nasm
 ASFLAGS := -f elf64 -g -F dwarf
 
 LD := $(ARCH)-ld
-LDFLAGS := -z max-page-size=0x1000 -L ../lib -l itskernel -Tlinker.lds
+LDFLAGS := -z max-page-size=0x1000 -L net -l net -L ../lib -l itskernel -Tlinker.lds
 
 AR := $(ARCH)-ar
 ARFLAGS := 
 
 TARGET := itskernelui
-SOURCES := $(shell find -name "*.c" -or -name "*.s" -type f)
+SOURCES := $(shell find -not -path "./net/*" -name "*.c" -or -name "*.s" -type f)
 OBJECTS := $(addsuffix .o, $(basename $(SOURCES)))
 DEPENDENCIES := $(shell find -name "*.d")
 

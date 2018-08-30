@@ -27,4 +27,10 @@ void *heap_alloc(int size);
 void heap_free(void *memory);
 
 // Copies memory from source to destination. The arrays must not intersect!
-void memcpy(void *destination, const void *source, int length);
+void *memcpy(void *destination, const void *source, int length);
+
+// Sets the first _length_ bytes in the target array to a given value.
+void *memset(void *array, int value, int length);
+
+// Compares the given two byte arrays and returns 0 on equality.
+int memcmp(const void *array1, const void *array2, int length);
