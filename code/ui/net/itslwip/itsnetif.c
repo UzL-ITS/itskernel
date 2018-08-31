@@ -58,20 +58,20 @@ static err_t itsnetif_output(struct netif *netif, struct pbuf *p)
 			// Error check
 			if(packetSize > ETHERNET_PACKET_SIZE)
 			{
-				printf("Error: Buffer overflow when merging output ethernet packet.\n");
+				printf_locked("Error: Buffer overflow when merging output ethernet packet.\n");
 				return ERR_BUF;
 			}
 		}
 	}
 
-	printf("Sending packet of length %d", packetSize);
+	printf_locked("Sending packet of length %d", packetSize);
 	for(int i = 0; i < packetSize; ++i)
 	{
 		if(i % 16 == 0)
-			printf("\n    ");
-		printf("%02x ", (uint8_t)packet[i]);
+			printf_locked("\n    ");
+		printf_locked("%02x ", (uint8_t)packet[i]);
 	}
-	printf("\n");
+	printf_locked("\n");
 	
 	// Send packet
 	sys_send_network_packet((uint8_t *)packet, packetSize);
@@ -149,14 +149,14 @@ void itsnetif_input(struct netif *netif, uint8_t *packet, int packetLength)
 		// Pass packet to LWIP ethernet input for further processing
 		if(netif->input(p, netif) != ERR_OK)
 		{
-			printf("Error passing input packet to LWIP\n");
+			printf_locked("Error passing input packet to LWIP\n");
 			pbuf_free(p);
 		}
 	}
 	else
 	{
 		// Update statistics
-		printf("pbuf allocation error\n");
+		printf_locked("pbuf allocation error\n");
 		LINK_STATS_INC(link.memerr);
 		LINK_STATS_INC(link.drop);
 		MIB2_STATS_NETIF_INC(netif, ifindiscards);
@@ -197,7 +197,7 @@ err_t itsnetif_init(struct netif *netif)
 	// Set MAC hardware address
 	netif->hwaddr_len = ETHARP_HWADDR_LEN;
 	sys_get_network_mac_address((uint8_t *)&netif->hwaddr);
-	printf("MAC: %02x:%02x:%02x:%02x:%02x:%02x\n", netif->hwaddr[0], netif->hwaddr[1], netif->hwaddr[2], netif->hwaddr[3], netif->hwaddr[4], netif->hwaddr[5]);
+	printf_locked("MAC: %02x:%02x:%02x:%02x:%02x:%02x\n", netif->hwaddr[0], netif->hwaddr[1], netif->hwaddr[2], netif->hwaddr[3], netif->hwaddr[4], netif->hwaddr[5]);
 
 	// Set maximum transfer unit
 	// TODO configure driver correctly

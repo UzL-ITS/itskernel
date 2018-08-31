@@ -26,6 +26,9 @@ void io_init(int lines)
 	if(initDone)
 		return;
 	
+	// Initialize printf_locked mutex
+	printf_init();
+	
 	// Initialize keyboard
 	keyboard_init();
 	

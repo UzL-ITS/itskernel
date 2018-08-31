@@ -39,9 +39,9 @@ See doc/sys_arch.txt for further explanations.
 
 // Debug outputs
 #define LWIP_PLATFORM_DIAG(x) do { \
-        printf(x);                 \
+        printf_locked(x);                 \
     } while(0)
 
 #define LWIP_PLATFORM_ASSERT(x) do {                                              \
-        printf("Assertion failed at line %d in %s: %s\n", __LINE__, __FILE__, x); \
+        printf_locked("Assertion failed at line %d in %s: %s\n", __LINE__, __FILE__, x); \
     } while(0)

@@ -56,6 +56,7 @@ void _putchar(char character);
  * \return The number of characters that are written into the array, not counting the terminating null character
  */
 int printf(const char* format, ...);
+int printf_locked(const char* format, ...); // Prevents output overlapping
 
 
 /**
@@ -89,6 +90,10 @@ int vsnprintf(char* buffer, size_t count, const char* format, va_list va);
  * \return The number of characters that are sent to the output function, not counting the terminating null character
  */
 int fctprintf(void (*out)(char character, void* arg), void* arg, const char* format, ...);
+
+// Internal initialization function to setup the printf_locked mutex.
+void printf_init();
+
 
 
 #ifdef __cplusplus

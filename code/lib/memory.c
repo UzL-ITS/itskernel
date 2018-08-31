@@ -76,3 +76,18 @@ int memcmp(const void *array1, const void *array2, int length)
 		}
     return 0;
 }
+
+void *memmove(void *destination, const void *source, int length)
+{
+	// If the source address is higher than the destination address, our memcpy() implementation is safe
+	if(source > destination)
+		return memcpy(destination, source, length);
+	
+	// Copy byte wise backwards
+	uint8_t *destinationBytes = (uint8_t *)destination + length - 1;
+	const uint8_t *sourceBytes = (uint8_t *)source + length - 1;
+	while(length--)
+		*destinationBytes-- = *sourceBytes--;
+	
+	return destination;
+}

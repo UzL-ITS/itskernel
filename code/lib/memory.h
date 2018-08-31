@@ -34,3 +34,6 @@ void *memset(void *array, int value, int length);
 
 // Compares the given two byte arrays and returns 0 on equality.
 int memcmp(const void *array1, const void *array2, int length);
+
+// Copies memory from source to destination. Unlike memcpy(), the arrays are allowed to intersect.
+void *memmove(void *destination, const void *source, int length);

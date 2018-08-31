@@ -1,3 +1,5 @@
+// NOTE: Slightly modified to support locked printf.
+
 ///////////////////////////////////////////////////////////////////////////////
 // \author (c) Marco Paland (info@paland.com)
 //             2014-2018, PALANDesign Hannover, Germany
@@ -32,7 +34,15 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <threading/lock.h>
 #include "printf.h"
+
+mutex_t printf_locked_mutex;
+void printf_init()
+{
+	// Initialize mutex
+	mutex_init(&printf_locked_mutex);
+}
 
 
 // ntoa conversion buffer size, this must be big enough to hold
@@ -668,6 +678,18 @@ int printf(const char* format, ...)
   va_start(va, format);
   char buffer[1];
   const int ret = _vsnprintf(_out_char, buffer, (size_t)-1, format, va);
+  va_end(va);
+  return ret;
+}
+
+int printf_locked(const char* format, ...)
+{
+  va_list va;
+  va_start(va, format);
+  char buffer[1];
+  mutex_acquire(&printf_locked_mutex);
+  const int ret = _vsnprintf(_out_char, buffer, (size_t)-1, format, va);
+  mutex_release(&printf_locked_mutex);
   va_end(va);
   return ret;
 }
