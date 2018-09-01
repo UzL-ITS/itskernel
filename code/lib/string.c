@@ -43,6 +43,15 @@ char *strrev(char *str)
 	return str;
 }
 
+char *strchr(char *str, int c)
+{
+	// Find character
+    while(*str != (char)c)
+        if(!*str++)
+            return 0;
+    return str;
+}
+
 uint64_t atoi(const char *str)
 {
 	// Add up digits from left to right

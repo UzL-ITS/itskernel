@@ -24,6 +24,9 @@ int strlen(const char *str);
 // Returns str on success.
 char *strrev(char *str);
 
+// Returns a pointer to the first location of a character in the given string.
+char *strchr(char *str, int c);
+
 // Converts the given string into an unsigned 64-bit integer.
 uint64_t atoi(const char *str);
 

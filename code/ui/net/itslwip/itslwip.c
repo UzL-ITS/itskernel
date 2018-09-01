@@ -46,9 +46,6 @@ typedef struct
 	// The state of the connect() operation (ERR_INPROGRESS until completed).
 	err_t connectState;
 	
-	// The state of the close() operation (ERR_INPROGRESS until completed).
-	err_t closeState;
-	
 	// Mutex for receive queue access.
 	mutex_t receiveQueueMutex;
 	
@@ -166,9 +163,6 @@ static err_t handle_tcp_connected(void *arg, struct tcp_pcb *tcpObj, err_t err)
 	// Get TCP connection data container
 	tcp_conn_data_t *tcpConnData = (tcp_conn_data_t *)arg;
 	
-	// Set flag
-	tcpConnData->isConnected = true;
-	
 	// Set error code
 	printf_locked("TCP connected with error code %d\n", err);
 	tcpConnData->lastError = err;
@@ -180,11 +174,10 @@ static err_t handle_tcp_connected(void *arg, struct tcp_pcb *tcpObj, err_t err)
 static err_t handle_tcp_sent(void *arg, struct tcp_pcb *tcpObj, u16_t len)
 {
 	// Get TCP connection data container
-	tcp_conn_data_t *tcpConnData = (tcp_conn_data_t *)arg;
+	//tcp_conn_data_t *tcpConnData = (tcp_conn_data_t *)arg;
 	
-	// Decrement send queue size counter
+	// Debug output
 	printf_locked("TCP successfully sent %d bytes\n", len);
-	tcpConnData->sendQueueSize -= len;
 	
 	return ERR_OK;
 }
@@ -219,9 +212,22 @@ static err_t handle_tcp_receive(void *arg, struct tcp_pcb *tcpObj, struct pbuf *
 		}
 	}
 	
-	// TODO lock and enqueue
+	// Allocate a receive buffer list entry
+	receive_queue_entry_t *queueEntry = (receive_queue_entry_t *)malloc(sizeof(receive_queue_entry_t));
+	queueEntry->length = length;
+	queueEntry->data = data;
 	
-	printf_locked("TCP successfully sent %d bytes\n", len);
+	// Insert entry into list
+	mutex_acquire(&tcpConnData->receiveQueueMutex);
+	if(!tcpConnData->receiveQueueStart)
+		tcpConnData->receiveQueueStart = queueEntry;
+	if(tcpConnData->receiveQueueEnd)
+		tcpConnData->receiveQueueEnd->next = queueEntry;
+	tcpConnData->receiveQueueEnd = queueEntry;
+	queueEntry->next = 0;
+	mutex_release(&tcpConnData->receiveQueueMutex);
+	
+	printf_locked("TCP successfully received %d bytes\n", length);
 	for(int i = 0; i < length; ++i)
 	{
 		if(i % 16 == 0)
@@ -294,19 +300,13 @@ void itslwip_disconnect(tcp_handle_t tcpHandle)
 	mutex_acquire(&lwipMutex);
 	
 	// Close connection
-	tcpConnData->closeState = ERR_INPROGRESS;
 	err_t err = tcp_close(tcpConnData->tcpObj);
 	printf_locked("TCP close request returned error code %d\n", err);
 	
+	// TODO use tcp_abort if it fails
+	
 	// LWIP calls are done
 	mutex_release(&lwipMutex);
-	
-	// Wait until close succeeds
-	while(tcpConnData->closeState == ERR_INPROGRESS)
-		sys_yield();
-	printf_locked("TCP closed with error code %d\n", tcpConnData->closeState);
-	
-	// TODO use tcp_abort if it fails
 	
 	// Free TCP connection data container
 	free(tcpConnData);
@@ -345,20 +345,68 @@ void itslwip_send(tcp_handle_t tcpHandle, uint8_t *data, int dataLength)
 
 void itslwip_receive_data(tcp_handle_t tcpHandle, uint8_t *dataBuffer, int dataLength)
 {
-	// Ensure synchronized access to LWIP functions
-	mutex_acquire(&lwipMutex);
+	// Get TCP connection data container
+	// TODO support more than one simultaneous connection later
+	tcp_conn_data_t *tcpConnData = tcpConnDataList;
 	
-	
-	
-	// LWIP calls are done
-	mutex_release(&lwipMutex);
+	// Poll receive queue until full data block has arrived
+	int receivedDataLength = 0;
+	int pendingDataLength = dataLength;
+	while(receivedDataLength < dataLength)
+	{
+		// Entry available?
+		if(tcpConnData->receiveQueueStart)
+		{
+			// Copy data from entry; if the entry is larger than the requested data amount, keep the remaining part
+			mutex_acquire(&tcpConnData->receiveQueueMutex);
+			receive_queue_entry_t *queueEntry = tcpConnData->receiveQueueStart;
+			if(queueEntry->length > pendingDataLength)
+			{
+				// The entry is larger than needed, only copy the first part and move the rest to the beginning
+				memcpy(dataBuffer, queueEntry->data, pendingDataLength);
+				memmove(queueEntry->data, queueEntry->data + pendingDataLength, queueEntry->length - pendingDataLength);
+				queueEntry->length -= pendingDataLength;
+				receivedDataLength += pendingDataLength;
+				pendingDataLength = 0;
+			}
+			else
+			{
+				// The entry is consumed entirely, so free it after copying its contents
+				memcpy(dataBuffer, queueEntry->data, pendingDataLength);
+				receivedDataLength += queueEntry->length;
+				pendingDataLength -= queueEntry->length;
+				tcpConnData->receiveQueueStart = queueEntry->next;
+				if(!tcpConnData->receiveQueueStart)
+					tcpConnData->receiveQueueEnd = 0;
+				free(queueEntry->data);
+				free(queueEntry);
+			}
+			mutex_release(&tcpConnData->receiveQueueMutex);
+		}
+		else
+			sys_yield();
+	}
 }
 
 void itslwip_receive_line(tcp_handle_t tcpHandle, char *lineBuffer, int lineBufferLength)
 {
-	// Ensure synchronized access to LWIP functions
-	mutex_acquire(&lwipMutex);
+	// Get TCP connection data container
+	// TODO support more than one simultaneous connection later
+	//tcp_conn_data_t *tcpConnData = tcpConnDataList;
 	
-	// LWIP calls are done
-	mutex_release(&lwipMutex);
+	// Receive individual chars until new line is encountered or the buffer is filled up
+	// TODO more efficient implementation
+	char currentChar;
+	int i = 0;
+	while(i < lineBufferLength - 1)
+	{
+		// Receive next char
+		itslwip_receive_data(tcpHandle, (uint8_t *)&currentChar, 1);
+		if(currentChar == '\n')
+			break;
+		
+		// Add char to the line buffer
+		lineBuffer[i++] = currentChar;
+	}
+	lineBuffer[i] = '\0';
 }

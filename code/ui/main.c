@@ -25,70 +25,90 @@ static void handle_window_switch(vkey_t keyCode, bool shiftPressed)
 	sys_set_displayed_process(keyCode - VKEY_F1);
 }
 
+// Returns the next argument of the given command string.
+static const char *next_command_argument(const char *command, int *argumentLength)
+{
+	// Skip current argument
+	while(*command != ' ')
+		if(*command++ == '\0')
+			return 0;
+	
+	// Skip whitespace
+	while(*command == ' ')
+		if(*command++ == '\0')
+			return 0;
+	return command;
+}
+
 void main()
 {
 	// Initialize library
 	_start();
 	
 	// Banner
-	printf("--- ITS Micro Kernel :: UI PROCESS ---\n");
+	printf_locked("--- ITS Micro Kernel :: UI PROCESS ---\n");
 	
 	// Install handler for render context switch
-	printf("Installing context switch handlers...");
+	printf_locked("Installing context switch handlers...");
 	for(int c = VKEY_F1; c <= VKEY_F12; ++c)
 		register_keypress_handler(c, &handle_window_switch);
-	printf("OK\n");
+	printf_locked("OK\n");
 	
 	// Start LWIP thread
-	printf("Starting LWIP thread...\n");
+	printf_locked("Starting LWIP thread...\n");
 	run_thread(&itslwip_run, 0);
-	printf("Thread started.\n");
-	while(true) {}
+	printf_locked("Thread started.\n");
 	
 	// Command loop
+	char lineBuffer[1000];
 	while(true)
 	{
 		// Print command line string
-		printf("\nitskernel$ ");
+		printf_locked("\n~$ ");
 		char *command = getline();
 		int commandLength = strlen(command);
 		
 		// Handle command
 		if(strncmp(command, "exit", 4) == 0)
 			break;
-		else if(strncmp(command, "test", 4) == 0)
+		else if(strncmp(command, "lss", 3) == 0)
 		{
-			uint8_t mac[6];
-			sys_get_network_mac_address(mac);
-			printf("MAC: %02x:%02x:%02x:%02x:%02x:%02x\n", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+			// Connect to server and send command
+			tcp_handle_t tcpHandle = itslwip_connect("192.168.20.1", 17571);
+			itslwip_send(tcpHandle, "ls\n", 3);
 			
-			uint8_t packet[] =
+			// Receive file count
+			itslwip_receive_line(tcpHandle, lineBuffer, sizeof(lineBuffer));
+			int count = atoi(lineBuffer);
+			printf_locked("Server has %d input files:\n", count);
+			
+			// Receive file list
+			for(int i = 0; i < count; ++i)
 			{
-				0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-				mac[0], mac[1], mac[2], mac[3], mac[4], mac[5],
-				0x08, 0x06,
-				
-				0x00, 0x01,
-				0x08, 0x00,
-				0x06,
-				0x04,
-				0x00, 0x01,
-				mac[0], mac[1], mac[2], mac[3], mac[4], mac[5],
-				0xC0, 0xA8, 0x0A, 0x0A,
-				0xFF, 0xFF, 0xFF, 0xFF,	0xFF, 0xFF,
-				0xC0, 0xA8, 0x01, 0xFE
-			};
-			sys_send_network_packet(packet, sizeof(packet));
-			printf("Packet sent.\n");
+				itslwip_receive_line(tcpHandle, lineBuffer, sizeof(lineBuffer));
+				printf_locked("    %s\n", lineBuffer);
+			}
+			
+			// Disconnect
+			itslwip_send(tcpHandle, "exit\n", 5);
+			itslwip_disconnect(tcpHandle);
+		}
+		else if(strncmp(command, "dl ", 3) == 0)
+		{
+			// Get file name
+			int arg1Length;
+			char *arg1 = next_command_argument(command, &arg1Length);
+			
+			// TODO
 		}
 		else
-			printf("Unknown command.\n");
+			printf_locked("Unknown command.\n");
 		
 		// Free command string
 		free(command);
 	}
 		
 	// Exit with return code
-	printf("Exiting...\n");
+	printf_locked("Exiting...\n");
 	_end(0);
 }

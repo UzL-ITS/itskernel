@@ -13,6 +13,7 @@ ITS kernel LWIP port main file.
 
 // Type of a TCP connection handle.
 typedef int tcp_handle_t;
+#define TCP_HANDLE_INVALID -1
 
 
 /* DECLARATIONS */
@@ -35,5 +36,6 @@ void itslwip_send(tcp_handle_t tcpHandle, uint8_t *data, int dataLength);
 void itslwip_receive_data(tcp_handle_t tcpHandle, uint8_t *dataBuffer, int dataLength);
 
 // Receives a text line.
-// This function blocks until a new line character (\n) was encountered. The new line itself is not returned.
+// This function blocks until a new line character (\n) was encountered.
+// The resulting string is \0 terminated; the new line character itself is not returned.
 void itslwip_receive_line(tcp_handle_t tcpHandle, char *lineBuffer, int lineBufferLength);

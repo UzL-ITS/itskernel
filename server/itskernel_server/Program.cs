@@ -36,7 +36,7 @@ namespace itskernel_server
                 Directory.CreateDirectory(outDirectory);
 
             // Start server
-            string serverIp = RequestUserConfig("server IP", "127.0.0.1");
+            string serverIp = RequestUserConfig("server IP", "192.168.20.1");
             TcpListener server = new TcpListener(System.Net.IPAddress.Parse(serverIp), SERVER_PORT);
             server.Start();
             while(true)
@@ -56,7 +56,7 @@ namespace itskernel_server
 
                     // Client command loop
                     bool running = true;
-                    while(running)
+                    while(running && connClient.Connected)
                     {
                         // Receive next command
                         string command = connReader.ReadLine();
@@ -81,7 +81,7 @@ namespace itskernel_server
                                 Console.WriteLine($"    Sending file list...");
                                 connWriter.WriteLine(inDirFileNames.Length);
                                 foreach(string fileName in inDirFileNames)
-                                    connWriter.WriteLine(fileName);
+                                    connWriter.WriteLine(Path.GetFileName(fileName));
                                 connWriter.Flush();
 
                                 break;
