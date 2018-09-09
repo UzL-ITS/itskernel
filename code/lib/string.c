@@ -130,3 +130,20 @@ int strncmp(const char *str1, const char *str2, int n)
     else
         return *s1 - *s2;
 }
+
+char *strncpy(char *dest, const char *src, int n)
+{
+	// Copy string
+	char *ret = dest;
+	do
+	{
+		if(!n--)
+			return ret;
+	}
+	while((*dest++ = *src++));
+	
+	// Pad destination string with zeroes, if necessary
+	while(n--)
+		*dest++ = 0;
+	return ret;
+}

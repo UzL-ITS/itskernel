@@ -13,6 +13,7 @@ Kernel UI process main file.
 #include <stdbool.h>
 #include <string.h>
 #include <stdint.h>
+#include <fs/ramfs.h>
 #include "net/itslwip/itslwip.h"
 
 
@@ -44,6 +45,9 @@ void main()
 {
 	// Initialize library
 	_start();
+	
+	// Initialize file system
+	ramfs_init();
 	
 	// Banner
 	printf_locked("--- ITS Micro Kernel :: UI PROCESS ---\n");
