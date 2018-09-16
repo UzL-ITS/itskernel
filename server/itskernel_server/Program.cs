@@ -95,7 +95,11 @@ namespace itskernel_server
 
                                 // Read entire file into memory
                                 Console.WriteLine($"    Reading file \"{ fileName }\"...");
-                                byte[] file = File.ReadAllBytes(Path.Combine(inDirectory, fileName));
+                                byte[] file;
+                                if(File.Exists(Path.Combine(inDirectory, fileName)))
+                                    file = File.ReadAllBytes(Path.Combine(inDirectory, fileName));
+                                else
+                                    file = Encoding.ASCII.GetBytes("File does not exist.");
 
                                 // Send file size first
                                 Console.WriteLine($"    Sending file size...");

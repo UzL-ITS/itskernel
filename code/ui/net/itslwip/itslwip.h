@@ -31,6 +31,10 @@ void itslwip_disconnect(tcp_handle_t tcpHandle);
 // This function blocks until all data was sent and acknowledged by the target.
 void itslwip_send(tcp_handle_t tcpHandle, uint8_t *data, int dataLength);
 
+// Sends string data over the given TCP connection.
+// This function blocks until all data was sent and acknowledged by the target.
+void itslwip_send_string(tcp_handle_t tcpHandle, char *string, int stringLength);
+
 // Receives the given amount of bytes.
 // This function blocks until the desired amount of bytes was received.
 void itslwip_receive_data(tcp_handle_t tcpHandle, uint8_t *dataBuffer, int dataLength);

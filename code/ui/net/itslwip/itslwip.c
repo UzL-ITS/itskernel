@@ -313,6 +313,12 @@ void itslwip_disconnect(tcp_handle_t tcpHandle)
 	tcpConnDataList = 0;
 }
 
+void itslwip_send_string(tcp_handle_t tcpHandle, char *string, int stringLength)
+{
+	// Send string as raw data
+	itslwip_send(tcpHandle, (uint8_t *)string, stringLength);
+}
+
 void itslwip_send(tcp_handle_t tcpHandle, uint8_t *data, int dataLength)
 {
 	// Get TCP connection data container
