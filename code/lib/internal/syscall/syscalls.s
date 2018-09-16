@@ -67,3 +67,4 @@ syscallwrapper sys_get_elapsed_milliseconds, 19
 syscallwrapper sys_get_network_mac_address, 20
 syscallwrapper sys_receive_network_packet, 21
 syscallwrapper sys_send_network_packet, 22
+syscallwrapper sys_start_process, 23

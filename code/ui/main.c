@@ -37,9 +37,12 @@ static char **split_command_string(char *command, int *argumentCount)
 		// Update argument counter
 		*argumentCount = i;
 		
-		// Skip whitespace
+		// Turn whitespace into terminating zeroes, such that args[i] can be used as single strings
 		while(*command == ' ')
+		{
+			*command = '\0';
 			++command;
+		}
 		if(*command == '\0')
 			return args;
 		
@@ -123,11 +126,14 @@ void main()
 			itslwip_send_string(tcpHandle, "exit\n", 5);
 			itslwip_disconnect(tcpHandle);
 		}
+		else if(strcmp(args[0], "ls") == 0 || strcmp(args[0], "ll") == 0)
+		{
+			// Dump entire file system tree
+			ramfs_dump();
+		}
 		else if(strcmp(args[0], "dl") == 0)
 		{
 			// Get file name
-			int argCount;
-			char **args = split_command_string(command, &argCount);
 			if(argCount < 2)
 			{
 				printf_locked("Missing argument.\n");
@@ -161,6 +167,28 @@ void main()
 			itslwip_disconnect(tcpHandle);
 			free(filename);
 			free(args);
+		}
+		else if(strcmp(args[0], "prefix") == 0)
+		{
+			// Load file
+			if(argCount < 3)
+			{
+				printf_locked("Missing argument.\n");
+				break;
+			}
+			uint8_t *fileData;
+			int fileLength;
+			if(ramfs_get_file(args[1], (void **)&fileData, &fileLength) == RAMFS_ERR_OK)
+			{
+				// Print first bytes
+				int dumpLength = atoi(args[2]);
+				if(dumpLength > fileLength)
+					dumpLength = fileLength;
+				for(int i = 0; i < dumpLength; ++i)
+					printf_locked("%c", fileData[i]);
+			}
+			else
+				printf_locked("File not found.\n");
 		}
 		else
 			printf_locked("Unknown command.\n");

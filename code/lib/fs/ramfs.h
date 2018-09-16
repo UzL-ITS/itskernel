@@ -51,5 +51,5 @@ ramfs_err_t ramfs_create_file(const char *path, const char *name, void *data, in
 // Returns the contents of the given file.
 ramfs_err_t ramfs_get_file(const char *path, void **dataPtr, int *dataLengthPtr);
 
-// Dumps the entire RAM file system tree (for debugging).
+// Dumps the entire RAM file system tree.
 void ramfs_dump();

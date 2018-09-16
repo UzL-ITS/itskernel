@@ -41,6 +41,7 @@ uintptr_t syscall_table[] =
 	/* 20 */ (uintptr_t)&sys_get_network_mac_address,
 	/* 21 */ (uintptr_t)&sys_receive_network_packet,
 	/* 22 */ (uintptr_t)&sys_send_network_packet,
+	/* 23 */ (uintptr_t)&sys_start_process,
 };
 uint64_t syscall_table_size = sizeof(syscall_table) / sizeof(*syscall_table);
 

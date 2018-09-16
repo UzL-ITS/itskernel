@@ -65,6 +65,9 @@ void sys_run_thread(uint64_t rip);
 // Exits the current thread.
 void sys_exit_thread();
 
+// Starts a new process based on the given ELF file data.
+bool sys_start_process(uint8_t *program, int programLength);
+
 // Returns the amount of elapsed milliseconds since system start.
 uint64_t sys_get_elapsed_milliseconds();
 
