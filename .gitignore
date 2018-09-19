@@ -277,3 +277,5 @@ code/kernel/itskernel.asm
 /code/ui/net/lwip/doc/*
 
 /code/ui/itskernelui
+/code/testapp/testapp
+/run/disk.vmdk

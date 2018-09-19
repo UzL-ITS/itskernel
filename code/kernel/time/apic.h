@@ -4,6 +4,8 @@
 
 #include <intr/route.h>
 
-void apic_monotonic(int ms, intr_handler_t handler);
+
+void apic_timer_install_handler(intr_handler_t handler);
+void apic_monotonic(int ms);
 
 #endif

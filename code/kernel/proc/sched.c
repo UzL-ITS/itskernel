@@ -10,27 +10,24 @@
 #include <util/list.h>
 #include <panic/panic.h>
 #include <stdlib/string.h>
+#include <stdbool.h>
 
 #define SCHED_TIMESLICE 10 /* 10ms = 100Hz */
 
 /* a list of threads that are ready to run */
-static spinlock_t thread_queue_lock = SPIN_UNLOCKED;
 static list_t thread_queue = LIST_EMPTY;
+static spinlock_t thread_queue_lock = SPIN_UNLOCKED;
+
+// Determines whether the scheduler interrupt handler has been installed yet.
+static bool interruptInstalled = false;
+static spinlock_t interruptInstalledLock = SPIN_UNLOCKED;
 
 // Handles an APIC timer interrupt.
-#include <net/intel8254x.h>
 static void sched_handle_apic_interrupt(cpu_state_t *state)
 {
 	// Increment timer counter
 	cpu_t *cpu = cpu_get();
 	cpu->elapsedMsSinceStart += SCHED_TIMESLICE;
-	
-	
-	
-	if(cpu->elapsedMsSinceStart % 1000 == 0)
-		debug();
-	
-	
 	
 	// Process scheduler tick
 	sched_tick(state);
@@ -38,11 +35,23 @@ static void sched_handle_apic_interrupt(cpu_state_t *state)
 
 void sched_init(void)
 {
+	// Install interrupt handler, if not already done
+	spin_lock(&interruptInstalledLock);
+	if(!interruptInstalled)
+	{
+		if(smp_mode == MODE_SMP)
+			apic_timer_install_handler(&sched_handle_apic_interrupt);
+		else
+			pit_timer_install_handler(&sched_handle_apic_interrupt);
+		interruptInstalled = true;
+	}
+	spin_unlock(&interruptInstalledLock);
+		
 	// Start scheduler timer for this CPU
 	if(smp_mode == MODE_SMP)
-		apic_monotonic(SCHED_TIMESLICE, &sched_handle_apic_interrupt);
+		apic_monotonic(SCHED_TIMESLICE);
 	else
-		pit_monotonic(SCHED_TIMESLICE, &sched_handle_apic_interrupt);
+		pit_monotonic(SCHED_TIMESLICE);
 }
 
 void sched_thread_resume(thread_t *thread)
@@ -82,8 +91,10 @@ void sched_tick(cpu_state_t *state)
 		new_thread = container_of(head, thread_t, sched_node);
 		list_remove(&thread_queue, head);
 	}
-
-	spin_unlock(&thread_queue_lock);
+	
+	// TODO the register file copy below causes a race condition, when another core picks up execution of cur_thread before the whole state was copied
+	//      Temporary fix: Lock the entire scheduler step
+	//spin_unlock(&thread_queue_lock);
 
 	/* if there is no new thread, switch to the idle thread */
 	if (!new_thread)
@@ -121,4 +132,6 @@ void sched_tick(cpu_state_t *state)
 		/* write new kernel stack pointer into the TSS */
 		tss_set_rsp0(new_thread->kernel_rsp);
 	}
+
+	spin_unlock(&thread_queue_lock);
 }

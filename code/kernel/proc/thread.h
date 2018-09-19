@@ -9,6 +9,9 @@
 
 #define THREAD_KERNEL 0x1 /* flag to indicate the thread runs in kernel mode */
 
+#define USER_STACK_SIZE (128*1024) // 128 KB
+#define KERNEL_STACK_SIZE (16*1024) // 16 KB
+
 typedef enum
 {
   THREAD_RUNNING,
@@ -30,7 +33,7 @@ typedef struct
    */
   uint64_t syscall_rsp;
 
-  /* base of the stacks (only used upon thread_destroy) */
+  /* base of the stacks (only used upon thread_destroy and in page fault handler) */
   void *kstack, *stack;
 
   /* flags the thread was created with (ditto) */

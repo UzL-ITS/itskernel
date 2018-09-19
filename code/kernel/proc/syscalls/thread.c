@@ -46,7 +46,9 @@ bool sys_start_process(uint8_t *program, int programLength)
 	// Load ELF file
 	if(!elf64_load(elf, programLength))
 	{
+		// Show error and restore current process
 		trace_printf("Error loading user-supplied ELF file\n");
+		proc_switch(currProc);
 		return false;
 	}
 	

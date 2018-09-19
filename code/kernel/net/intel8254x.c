@@ -378,7 +378,8 @@ void intel8254x_get_mac_address(uint8_t *macBuffer)
 
 void intel8254x_send(uint8_t *packet, int packetLength)
 {
-	trace_printf("Sending packet with length %d\n", packetLength);
+	//trace_printf("Sending packet with length %d\n", packetLength);
+	
 	/*trace_printf("First bytes: ");
 	int debugLen = (packetLength > 32 ? 32 : packetLength);
 	for(int i = 0; i < debugLen; ++i)
@@ -407,7 +408,7 @@ void intel8254x_send(uint8_t *packet, int packetLength)
 		txTail = 0;
 	intel8254x_write(I8254X_REG_TDT, txTail);
 	
-	trace_printf("Passing packet to device done.\n");
+	//trace_printf("Passing packet to device done.\n");
 }
 
 // Processes one received packet.
@@ -427,7 +428,7 @@ static void intel8254x_receive()
 			uint8_t *packet = &rxBufferMem[newRxTail * RX_BUFFER_SIZE];
 			int packetLength = rxDescriptors[newRxTail].length;
 			
-			trace_printf("Received descriptor with length %d\n", packetLength);
+			//trace_printf("Received descriptor with length %d\n", packetLength);
 			/*trace_printf("First bytes: ");
 			int debugLen = (packetLength > 32 ? 32 : packetLength);
 			for(int i = 0; i < debugLen; ++i)
@@ -442,7 +443,6 @@ static void intel8254x_receive()
 			else
 			{
 				// Allocate a receive buffer list entry
-				// TODO locking should not be necessary here, since system calls and interrupts are mutually exclusive? Check this!
 				received_packet_t *bufferEntry;
 				if(receivedPacketsBufferListStart)
 				{
@@ -483,8 +483,6 @@ static void intel8254x_receive()
 
 int intel8254x_next_received_packet(uint8_t *packetBuffer)
 {
-	// TODO locking should not be necessary here, since system calls and interrupts are mutually exclusive? Check this!
-	
 	// Any packet available?
 	if(!receivedPacketsQueueStart)
 		return 0;
@@ -515,7 +513,7 @@ bool intel8254x_handle_interrupt(cpu_state_t *state)
 		return false;
 	
 	// Handle set interrupts
-	trace_printf("Intel8254x interrupt! ICR: %08x\n", icr);
+	//trace_printf("Intel8254x interrupt! ICR: %08x\n", icr);
 	if(icr & I8254X_INTR_RXT0)
 	{
 		// Receive timer expired, handle received packets

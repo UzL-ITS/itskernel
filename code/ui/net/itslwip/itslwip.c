@@ -106,12 +106,13 @@ void itslwip_run(void *args)
 	lwip_init();
 	
 	// Initialize LWIP network interface
-	inet_aton("192.168.20.10", &address);
+	inet_aton("192.168.21.10", &address);
 	inet_aton("255.255.255.0", &netmask);
-	inet_aton("192.168.20.1", &gatewayAddress);
+	inet_aton("192.168.21.1", &gatewayAddress);
 	if(!netif_add(&lwipNetif, &address, &netmask, &gatewayAddress, 0, &itsnetif_init, &ethernet_input))
 	{
 		printf_locked("Error in netif_add()\n");
+		mutex_release(&lwipMutex);
 		return;
 	}
 	netif_set_default(&lwipNetif);
@@ -129,15 +130,14 @@ void itslwip_run(void *args)
 		mutex_acquire(&lwipMutex);
 		if(packetLength)
 		{
-			
-			printf_locked("Received packet of length %d", packetLength);
+			/*printf_locked("Received packet of length %d", packetLength);
 			for(int i = 0; i < packetLength; ++i)
 			{
 				if(i % 16 == 0)
 					printf_locked("\n    ");
 				printf_locked("%02x ", packetBuffer[i]);
 			}
-			printf_locked("\n");
+			printf_locked("\n");*/
 		
 			itsnetif_input(&lwipNetif, packetBuffer, packetLength);
 		}
@@ -154,7 +154,7 @@ static void handle_tcp_error(void *arg, err_t err)
 	tcp_conn_data_t *tcpConnData = (tcp_conn_data_t *)arg;
 	
 	// Set error code
-	printf_locked("TCP error: %d\n", err);
+	//printf_locked("TCP error: %d\n", err);
 	tcpConnData->lastError = err;
 }
 
@@ -164,7 +164,7 @@ static err_t handle_tcp_connected(void *arg, struct tcp_pcb *tcpObj, err_t err)
 	tcp_conn_data_t *tcpConnData = (tcp_conn_data_t *)arg;
 	
 	// Set error code
-	printf_locked("TCP connected with error code %d\n", err);
+	//printf_locked("TCP connected with error code %d\n", err);
 	tcpConnData->lastError = err;
 	tcpConnData->connectState = err;
 	
@@ -177,7 +177,7 @@ static err_t handle_tcp_sent(void *arg, struct tcp_pcb *tcpObj, u16_t len)
 	//tcp_conn_data_t *tcpConnData = (tcp_conn_data_t *)arg;
 	
 	// Debug output
-	printf_locked("TCP successfully sent %d bytes\n", len);
+	//printf_locked("TCP successfully sent %d bytes\n", len);
 	
 	return ERR_OK;
 }
@@ -194,7 +194,7 @@ static err_t handle_tcp_receive(void *arg, struct tcp_pcb *tcpObj, struct pbuf *
 			length += q->len;
 	if(!length)
 	{
-		printf_locked("TCP receive function call without data; error code is %d\n", err);
+		//printf_locked("TCP receive function call without data; error code is %d\n", err);
 		return ERR_OK;
 	}
 	
@@ -227,15 +227,18 @@ static err_t handle_tcp_receive(void *arg, struct tcp_pcb *tcpObj, struct pbuf *
 	queueEntry->next = 0;
 	mutex_release(&tcpConnData->receiveQueueMutex);
 	
-	printf_locked("TCP successfully received %d bytes\n", length);
+	/*printf_locked("TCP successfully received %d bytes\n", length);
 	for(int i = 0; i < length; ++i)
 	{
 		if(i % 16 == 0)
 			printf_locked("\n");
 		printf_locked("%02x ", data[i]);
 	}
-	printf_locked("\n");
+	printf_locked("\n");*/
 	
+	// Done, notify LWIP that TCP data was processed
+	pbuf_free(p);
+	tcp_recved(tcpObj, length);
 	return ERR_OK;
 }
 
@@ -271,8 +274,8 @@ tcp_handle_t itslwip_connect(const char *targetAddress, int targetPort)
 	
 	// Connect
 	tcpConnData->connectState = ERR_INPROGRESS;
-	err_t err = tcp_connect(tcpObj, &targetAddr, targetPort, &handle_tcp_connected);
-	printf_locked("TCP connect request returned error code %d\n", err);
+	/*err_t err =*/ tcp_connect(tcpObj, &targetAddr, targetPort, &handle_tcp_connected);
+	//printf_locked("TCP connect request returned error code %d\n", err);
 	
 	// LWIP calls are done
 	mutex_release(&lwipMutex);
@@ -300,8 +303,8 @@ void itslwip_disconnect(tcp_handle_t tcpHandle)
 	mutex_acquire(&lwipMutex);
 	
 	// Close connection
-	err_t err = tcp_close(tcpConnData->tcpObj);
-	printf_locked("TCP close request returned error code %d\n", err);
+	/*err_t err =*/ tcp_close(tcpConnData->tcpObj);
+	//printf_locked("TCP close request returned error code %d\n", err);
 	
 	// TODO use tcp_abort if it fails
 	
@@ -337,8 +340,8 @@ void itslwip_send(tcp_handle_t tcpHandle, uint8_t *data, int dataLength)
 		uint16_t nextChunkSize = ((dataLength - i) > sendChunkSize ? sendChunkSize : (dataLength - i));
 		
 		// Add chunk to send queue
-		err_t err = tcp_write(tcpConnData->tcpObj, &data[i], nextChunkSize, 0);
-		printf_locked("TCP write request returned error code %d\n", err);
+		/*err_t err =*/ tcp_write(tcpConnData->tcpObj, &data[i], nextChunkSize, 0);
+		//printf_locked("TCP write request returned error code %d\n", err);
 		i += nextChunkSize;
 	}
 	
@@ -373,14 +376,18 @@ void itslwip_receive_data(tcp_handle_t tcpHandle, uint8_t *dataBuffer, int dataL
 				memmove(queueEntry->data, queueEntry->data + pendingDataLength, queueEntry->length - pendingDataLength);
 				queueEntry->length -= pendingDataLength;
 				receivedDataLength += pendingDataLength;
+				dataBuffer += pendingDataLength;
+				//printf_locked("Received %d bytes, %d bytes remaining\n", pendingDataLength, 0);
 				pendingDataLength = 0;
 			}
 			else
 			{
 				// The entry is consumed entirely, so free it after copying its contents
-				memcpy(dataBuffer, queueEntry->data, pendingDataLength);
+				memcpy(dataBuffer, queueEntry->data, queueEntry->length);
 				receivedDataLength += queueEntry->length;
+				dataBuffer += queueEntry->length;
 				pendingDataLength -= queueEntry->length;
+				//printf_locked("Received %d bytes, %d bytes remaining\n", queueEntry->length, pendingDataLength);
 				tcpConnData->receiveQueueStart = queueEntry->next;
 				if(!tcpConnData->receiveQueueStart)
 					tcpConnData->receiveQueueEnd = 0;

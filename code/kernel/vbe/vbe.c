@@ -142,6 +142,7 @@ int vbe_create_context()
 			context->colorBack = 0x00000000;
 			if(!context->previousBuffer || !context->currentBuffer)
 			{
+				panic("Error creating VBE context\n");
 				spin_unlock(&vbeContextLock);
 				return -2; // TODO better error codes
 			}

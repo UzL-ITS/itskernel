@@ -145,6 +145,7 @@ void smp_ap_init(void)
   /* now start the real work! - set up the GDT, TSS, BSP and SYSCALL/RET */
   gdt_init();
   tss_init();
+  tss_set_rsp0(cpu->idle_thread->rsp);
   idt_ap_init(); /* we re-use the same IDT for every CPU */
   syscall_init();
 

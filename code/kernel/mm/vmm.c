@@ -503,10 +503,7 @@ bool vmm_touch(uintptr_t virt, int size)
 
   tlb_transaction_init();
   bool ok = _vmm_touch(virt, size);
-  if(ok)
-    tlb_transaction_commit();
-  else
-    tlb_transaction_rollback();
+  tlb_transaction_commit();
 
   vmm_unlock(virt);
   return ok;
@@ -518,10 +515,7 @@ bool vmm_map(uintptr_t virt, uintptr_t phy, vm_acc_t flags)
 
   tlb_transaction_init();
   bool ok = _vmm_map(virt, phy, flags);
-  if(ok)
-    tlb_transaction_commit();
-  else
-    tlb_transaction_rollback();
+  tlb_transaction_commit();
 
   vmm_unlock(virt);
   return ok;
@@ -533,10 +527,7 @@ bool vmm_maps(uintptr_t virt, uintptr_t phy, vm_acc_t flags, int size)
 
   tlb_transaction_init();
   bool ok = _vmm_maps(virt, phy, flags, size);
-  if(ok)
-    tlb_transaction_commit();
-  else
-    tlb_transaction_rollback();
+  tlb_transaction_commit();
 
   vmm_unlock(virt);
   return ok;
@@ -576,10 +567,7 @@ bool vmm_map_range(uintptr_t virt, uintptr_t phy, size_t len, vm_acc_t flags)
   vmm_lock(virt);
   tlb_transaction_init();
   bool ok = _vmm_map_range(virt, phy, len, flags);
-  if(ok)
-    tlb_transaction_commit();
-  else
-    tlb_transaction_rollback();
+  tlb_transaction_commit();
 
   vmm_unlock(virt);
   return ok;

@@ -8,6 +8,8 @@ list_t cpu_list = LIST_EMPTY;
 
 static cpu_t cpu_bsp;
 
+static int nextCoreId = 0;
+
 void cpu_bsp_init(void)
 {
   memset(&cpu_bsp, 0, sizeof(cpu_bsp));
@@ -16,6 +18,8 @@ void cpu_bsp_init(void)
   cpu_bsp.intr_mask_count = 1; // as when this is called, interrupts are masked -> init.c calls intr_unlock() eventually
   cpu_bsp.proc = 0;
   cpu_bsp.thread = 0;
+  cpu_bsp.coreId = nextCoreId++;
+  cpu_bsp.tlbOperationQueueLength = 0;
   msr_write(MSR_GS_BASE, (uint64_t) &cpu_bsp);
   msr_write(MSR_GS_KERNEL_BASE, (uint64_t) &cpu_bsp);
 
@@ -36,6 +40,8 @@ bool cpu_ap_init(cpu_lapic_id_t lapic_id, cpu_acpi_id_t acpi_id)
   cpu->intr_mask_count = 1; // as when this is called, interrupts are masked
   cpu->proc = 0;
   cpu->thread = 0;
+  cpu->coreId = nextCoreId++;
+  cpu->tlbOperationQueueLength = 0;
 
   list_add_tail(&cpu_list, &cpu->node);
   return true;

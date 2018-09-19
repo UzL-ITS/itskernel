@@ -172,6 +172,9 @@ noreturn void init(uint32_t magic, multiboot_t *multiboot)
 	
 	/* set up idle process, this must be done before we are in SMP mode */
 	idle_init();
+	
+	// Set interrupt stack pointer for bootstrap processor
+    tss_set_rsp0(cpu_get()->idle_thread->rsp);
 
 	/* set up symmetric multi-processing */
 	if(!up_fallback)
@@ -184,7 +187,6 @@ noreturn void init(uint32_t magic, multiboot_t *multiboot)
 	nmi_init();
 
 	// Scan PCI devices
-	// TODO implement network stack
 	pci_init();
 	
 	// Initialize I/O devices

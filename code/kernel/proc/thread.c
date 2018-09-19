@@ -7,8 +7,6 @@
 #include <mm/seg.h>
 #include <stdlib/stdlib.h>
 
-#define USER_STACK_SIZE (128*1024) // 128 KB
-#define KERNEL_STACK_SIZE (16*1024) // 16 KB
 #define STACK_ALIGN 32
 
 thread_t *thread_create(proc_t *proc, int flags)

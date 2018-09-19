@@ -97,13 +97,13 @@ syscall_stub:
 ;   - we don't need to call SWAPGS upon entry (the SYSCALL entry code has
 ;     already done it)
 ;
-;   - we don't need to call CLD (the SYSCALL instruction leaves the flags in a
+;   - we don't need to call CLD (the SYSCALL instruction leaves the flag in a
 ;     well-defined state)
 ;
 ;   - we call R11 (the function pointer to the syscall) instead of intr_dispatch
 .faux_intr:
   ; mask interrupts
-  cli
+  ;cli
 
   ; push state the processor automatically pushes during an interrupt
   mov rax, rsp
@@ -140,7 +140,7 @@ syscall_stub:
   push rax
 
   ; increment mask count (we cleared IF above)
-  inc qword [gs:8]
+  ;inc qword [gs:8]
 
   ; call the system call routine
   mov rdi, rsp ; first argument points to the processor state
@@ -148,15 +148,15 @@ syscall_stub:
   call r11
 
   ; decrement mask count
-  dec qword [gs:8]
+  ;dec qword [gs:8]
 
   ; check if we are switching from supervisor to user mode
-  mov rax, [rsp + 152]
-  and rax, 0x3000
-  jz .supervisor_exit
+  ;mov rax, [rsp + 152]
+  ;and rax, 0x3000
+  ;jz .supervisor_exit
 
   ; switch back to the user's GS base if we are going from supervisor to user mode
-  swapgs
+  ;swapgs
 
 .supervisor_exit:
   ; restore the register file
@@ -180,10 +180,10 @@ syscall_stub:
   add rsp, 16
 
   ; return
-  iretq
+  iretq ; This jumps to .faux_intr_exit, the IF flag will stay cleared (it is not set in the pushed RFLAGS)
 
 .faux_intr_exit:
   ; re-enable interrupts (the SYSCALL exit routine expects it), and then dive
   ; back into the SYSCALL exit routine
-  sti
+  ;sti
   jmp .post_syscall

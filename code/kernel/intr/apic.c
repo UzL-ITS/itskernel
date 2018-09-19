@@ -122,11 +122,14 @@ static void apic_timer_calibrate(void)
   spin_unlock(&apic_calibrate_lock);
 }
 
-void apic_monotonic(int ms, intr_handler_t handler)
+void apic_timer_install_handler(intr_handler_t handler)
+{
+  intr_route_intr(LVT_TIMER, handler);
+}
+
+void apic_monotonic(int ms)
 {
   cpu_t *cpu = cpu_get();
-
-  intr_route_intr(LVT_TIMER, handler);
 
   apic_write(APIC_LVT_TIMER, LVT_TIMER_PERIODIC | LVT_TYPE_FIXED | LVT_TIMER);
   apic_write(APIC_TIMER_ICR, cpu->apic_ticks_per_ms * ms / 16);
