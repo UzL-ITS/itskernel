@@ -106,9 +106,9 @@ void itslwip_run(void *args)
 	lwip_init();
 	
 	// Initialize LWIP network interface
-	inet_aton("192.168.21.10", &address);
+	inet_aton("141.83.62.44", &address);
 	inet_aton("255.255.255.0", &netmask);
-	inet_aton("192.168.21.1", &gatewayAddress);
+	inet_aton("141.83.62.1", &gatewayAddress);
 	if(!netif_add(&lwipNetif, &address, &netmask, &gatewayAddress, 0, &itsnetif_init, &ethernet_input))
 	{
 		printf_locked("Error in netif_add()\n");

@@ -117,7 +117,7 @@ void main()
 		else if(strcmp(args[0], "lss") == 0)
 		{
 			// Connect to server and send command
-			tcp_handle_t tcpHandle = itslwip_connect("192.168.21.1", 17571);
+			tcp_handle_t tcpHandle = itslwip_connect("141.83.62.232", 17571);
 			itslwip_send_string(tcpHandle, "ls\n", 3);
 			
 			// Receive file count
@@ -154,7 +154,7 @@ void main()
 				filename[filenameLength] = '\n';
 				
 				// Connect to server and send command
-				tcp_handle_t tcpHandle = itslwip_connect("192.168.21.1", 17571);
+				tcp_handle_t tcpHandle = itslwip_connect("141.83.62.232", 17571);
 				itslwip_send_string(tcpHandle, "sendin\n", 7);
 				itslwip_send_string(tcpHandle, filename, filenameLength + 1);
 				

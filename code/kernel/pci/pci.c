@@ -11,7 +11,7 @@ PCI driver.
 #include <panic/panic.h>
 #include <intr/route.h>
 #include <cpu/state.h>
-#include <net/intel8254x.h>
+#include <net/net.h>
 
 // Represents one discovered PCI device.
 typedef struct pci_device
@@ -58,7 +58,7 @@ static void _handle_pci_interrupt(cpu_state_t *state)
 	//trace_printf("Received PCI interrupt.\n");
 	
 	// Pass interrupt to responsible device
-	intel8254x_handle_interrupt(state);
+	net_handle_interrupt(state);
 	//trace_printf("PCI interrupt handle end.\n");
 }
 
@@ -206,7 +206,7 @@ void pci_init()
 			pci_cfgspace_header_0_t *deviceCfgSpaceHeader = (pci_cfgspace_header_0_t *)cur->deviceCfgSpaceHeaderCommon;
 			
 			print_bar_info(deviceCfgSpaceHeader);
-			intel8254x_init(deviceCfgSpaceHeader);
+			net_init(deviceCfgSpaceHeader);
 		}
-	}	
+	}
 }

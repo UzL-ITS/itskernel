@@ -1,8 +1,8 @@
 /*
-Intel 8254x (e1000) ethernet driver.
+Intel i219 (e1000e) ethernet driver.
 */
 
-#include <net/intel8254x.h>
+#include <net/i219.h>
 #include <trace/trace.h>
 #include <mm/mmio.h>
 #include <panic/panic.h>
@@ -12,79 +12,79 @@ Intel 8254x (e1000) ethernet driver.
 #include <cpu/pause.h>
 
 // Maximum Transmission Unit (this value is slightly arbitrary, it matches the value used in the user-space LWIP wrapper).
-#define I8254X_MTU 1522
+#define I219_MTU 1522
 
 // Device register offsets.
 typedef enum
 {
-	I8254X_REG_CTRL = 0x0000, // Control Register
-	I8254X_REG_STATUS = 0x0008, // Device Status Register
+	I219_REG_CTRL = 0x0000, // Control Register
+	I219_REG_STATUS = 0x0008, // Device Status Register
 	I82542_REG_EERD = 0x0014, // EPROM Read Register
-	I8254X_REG_CTRLEXT = 0x0018, // Extended Control Register
-	I8254X_REG_MDIC = 0x0020, // MDI Control Register
-	I8254X_REG_FCAL = 0x0028, // Flow Control Address Low
-	I8254X_REG_FCAH = 0x002C, // Flow Control Address High
-	I8254X_REG_FCT = 0x0030, // Flow Control Type
-	I8254X_REG_VET = 0x0038, // VLAN Ether Type
-	I8254X_REG_ICR = 0x00C0, // Interrupt Cause Read
-	I8254X_REG_ITR = 0x00C4, // Interrupt Throttling Register
-	I8254X_REG_ICS = 0x00C8, // Interrupt Cause Set Register
-	I8254X_REG_IMS = 0x00D0, // Interrupt Mask Set/Read Register
-	I8254X_REG_IMC = 0x00D8, // Interrupt Mask Clear Register
-	I8254X_REG_RCTL = 0x0100, // Receive Control Register
-	I8254X_REG_FCTTV = 0x0170, // Flow Control Transmit Timer Value
-	I8254X_REG_TXCW = 0x0178, // Transmit Configuration Word
-	I8254X_REG_RXCW = 0x0180, // Receive Configuration Word
-	I8254X_REG_TCTL = 0x0400, // Transmit Control Register
-	I8254X_REG_TIPG = 0x0410, // Transmit Inter Packet Gap
-	I8254X_REG_LEDCTL = 0x0E00, // LED Control
-	I8254X_REG_PBA = 0x1000, // Packet Buffer Allocation
-	I8254X_REG_RDBAL = 0x2800, // RX Descriptor Base Address Low
-	I8254X_REG_RDBAH = 0x2804, // RX Descriptor Base Address High
-	I8254X_REG_RDLEN = 0x2808, // RX Descriptor Length
-	I8254X_REG_RDH = 0x2810, // RX Descriptor Head
-	I8254X_REG_RDT = 0x2818, // RX Descriptor Tail
-	I8254X_REG_RDTR = 0x2820, // RX Delay Timer Register
-	I8254X_REG_RXDCTL = 0x3828, // RX Descriptor Control
-	I8254X_REG_RADV = 0x282C, // RX Int. Absolute Delay Timer
-	I8254X_REG_RSRPD = 0x2C00, // RX Small Packet Detect Interrupt
-	I8254X_REG_TXDMAC = 0x3000, // TX DMA Control
-	I8254X_REG_TDBAL = 0x3800, // TX Descriptor Base Address Low
-	I8254X_REG_TDBAH = 0x3804, // TX Descriptor Base Address High
-	I8254X_REG_TDLEN = 0x3808, // TX Descriptor Length
-	I8254X_REG_TDH = 0x3810, // TX Descriptor Head
-	I8254X_REG_TDT = 0x3818, // TX Descriptor Tail
-	I8254X_REG_TIDV = 0x3820, // TX Interrupt Delay Value
-	I8254X_REG_TXDCTL = 0x3828, // TX Descriptor Control
-	I8254X_REG_TADV = 0x382C, // TX Absolute Interrupt Delay Value
-	I8254X_REG_TSPMT = 0x3830, // TCP Segmentation Pad & Min Threshold
-	I8254X_REG_RXCSUM = 0x5000, // RX Checksum Control
-	I8254X_REG_MTA = 0x5200, // Multicast Table Array
-	I8254X_REG_RAL = 0x5400, // Receive Address Low
-	I8254X_REG_RAH = 0x5404, // Receive Address High
+	I219_REG_CTRLEXT = 0x0018, // Extended Control Register
+	I219_REG_MDIC = 0x0020, // MDI Control Register
+	I219_REG_FCAL = 0x0028, // Flow Control Address Low
+	I219_REG_FCAH = 0x002C, // Flow Control Address High
+	I219_REG_FCT = 0x0030, // Flow Control Type
+	I219_REG_VET = 0x0038, // VLAN Ether Type
+	I219_REG_ICR = 0x00C0, // Interrupt Cause Read
+	I219_REG_ITR = 0x00C4, // Interrupt Throttling Register
+	I219_REG_ICS = 0x00C8, // Interrupt Cause Set Register
+	I219_REG_IMS = 0x00D0, // Interrupt Mask Set/Read Register
+	I219_REG_IMC = 0x00D8, // Interrupt Mask Clear Register
+	I219_REG_RCTL = 0x0100, // Receive Control Register
+	I219_REG_FCTTV = 0x0170, // Flow Control Transmit Timer Value
+	I219_REG_TXCW = 0x0178, // Transmit Configuration Word
+	I219_REG_RXCW = 0x0180, // Receive Configuration Word
+	I219_REG_TCTL = 0x0400, // Transmit Control Register
+	I219_REG_TIPG = 0x0410, // Transmit Inter Packet Gap
+	I219_REG_LEDCTL = 0x0E00, // LED Control
+	I219_REG_PBA = 0x1000, // Packet Buffer Allocation
+	I219_REG_RDBAL = 0x2800, // RX Descriptor Base Address Low
+	I219_REG_RDBAH = 0x2804, // RX Descriptor Base Address High
+	I219_REG_RDLEN = 0x2808, // RX Descriptor Length
+	I219_REG_RDH = 0x2810, // RX Descriptor Head
+	I219_REG_RDT = 0x2818, // RX Descriptor Tail
+	I219_REG_RDTR = 0x2820, // RX Delay Timer Register
+	I219_REG_RXDCTL = 0x3828, // RX Descriptor Control
+	I219_REG_RADV = 0x282C, // RX Int. Absolute Delay Timer
+	I219_REG_RSRPD = 0x2C00, // RX Small Packet Detect Interrupt
+	I219_REG_TXDMAC = 0x3000, // TX DMA Control
+	I219_REG_TDBAL = 0x3800, // TX Descriptor Base Address Low
+	I219_REG_TDBAH = 0x3804, // TX Descriptor Base Address High
+	I219_REG_TDLEN = 0x3808, // TX Descriptor Length
+	I219_REG_TDH = 0x3810, // TX Descriptor Head
+	I219_REG_TDT = 0x3818, // TX Descriptor Tail
+	I219_REG_TIDV = 0x3820, // TX Interrupt Delay Value
+	I219_REG_TXDCTL = 0x3828, // TX Descriptor Control
+	I219_REG_TADV = 0x382C, // TX Absolute Interrupt Delay Value
+	I219_REG_TSPMT = 0x3830, // TCP Segmentation Pad & Min Threshold
+	I219_REG_RXCSUM = 0x5000, // RX Checksum Control
+	I219_REG_MTA = 0x5200, // Multicast Table Array
+	I219_REG_RAL = 0x5400, // Receive Address Low
+	I219_REG_RAH = 0x5404, // Receive Address High
 	
-	I8254X_REG_GPRC = 0x4074, // Good Packets Received Count
-	I8254X_REG_BPRC = 0x4078, // Broadcast Packets Received Count
-	I8254X_REG_MPRC = 0x407C, // Multicast Packets Received Count
-} intel8254x_register_t;
+	I219_REG_GPRC = 0x4074, // Good Packets Received Count
+	I219_REG_BPRC = 0x4078, // Broadcast Packets Received Count
+	I219_REG_MPRC = 0x407C, // Multicast Packets Received Count
+} i219_register_t;
 
 // Interrupt types.
 typedef enum
 {
-	I8254X_INTR_TXDW = 0x0001,
-	I8254X_INTR_TXQE = 0x0002,
-	I8254X_INTR_LSC = 0x0004,
-	I8254X_INTR_RXSEQ = 0x0008,
-	I8254X_INTR_RXDMT0 = 0x0010,
-	I8254X_INTR_RXO = 0x0040,
-	I8254X_INTR_RXT0 = 0x0080,
-	I8254X_INTR_MDAC = 0x0200,
-	I8254X_INTR_RXCFG = 0x0400,
-	I8254X_INTR_PHYINT = 0x1000,
-	I8254X_INTR_GDISDP6 = 0x2000,
-	I8254X_INTR_GDISDP7 = 0x4000,
-	I8254X_INTR_TXDLOW = 0x8000
-} intel8254x_interrupt_t;
+	I219_INTR_TXDW = 0x0001,
+	I219_INTR_TXQE = 0x0002,
+	I219_INTR_LSC = 0x0004,
+	I219_INTR_RXSEQ = 0x0008,
+	I219_INTR_RXDMT0 = 0x0010,
+	I219_INTR_RXO = 0x0040,
+	I219_INTR_RXT0 = 0x0080,
+	I219_INTR_MDAC = 0x0200,
+	I219_INTR_RXCFG = 0x0400,
+	I219_INTR_PHYINT = 0x1000,
+	I219_INTR_GDISDP6 = 0x2000,
+	I219_INTR_GDISDP7 = 0x4000,
+	I219_INTR_TXDLOW = 0x8000
+} i219_interrupt_t;
 
 // Structure of receive descriptors.
 typedef struct
@@ -143,12 +143,12 @@ typedef struct received_packet_s
 	int length;
 	
 	// Packet data
-	uint8_t packet[I8254X_MTU];
+	uint8_t packet[I219_MTU];
 } received_packet_t;
 
 
 // Pointer to BAR0 MMIO memory.
-static uint8_t *deviceBar0Memory;
+static uint8_t *deviceBar0Memory = 0;
 
 // Size of BAR0 MMIO memory.
 static uint64_t deviceBar0MemorySize;
@@ -188,18 +188,18 @@ static received_packet_t *receivedPacketsBufferListStart;
 
 
 // Reads the given device register using MMIO.
-static uint32_t intel8254x_read(intel8254x_register_t reg)
+static uint32_t i219_read(i219_register_t reg)
 {
 	return *((uint32_t *)(deviceBar0Memory + reg));
 }
 
 // Sets a new value for the given device register using MMIO.
-static void intel8254x_write(intel8254x_register_t reg, uint32_t value)
+static void i219_write(i219_register_t reg, uint32_t value)
 {
 	*((uint32_t *)(deviceBar0Memory + reg)) = value;
 }
 
-void intel8254x_init(pci_cfgspace_header_0_t *deviceCfgSpaceHeader)
+void i219_init(pci_cfgspace_header_0_t *deviceCfgSpaceHeader)
 {
 	// Map BAR0 memory area
 	pci_bar_info_t bar0Info;
@@ -207,7 +207,7 @@ void intel8254x_init(pci_cfgspace_header_0_t *deviceCfgSpaceHeader)
 	deviceBar0MemorySize = bar0Info.size;
 	deviceBar0Memory = (uint8_t *)mmio_map(bar0Info.baseAddress, bar0Info.size, VM_R | VM_W);
 	if(!deviceBar0Memory)
-		panic("Error: Could not map Intel 8254x BAR0 MMIO.");
+		panic("Error: Could not map Intel i219 BAR0 MMIO.");
 	
 	// Enable PCI bus mastering (else no PCI accesses possible)
 	uint32_t commandRegister = deviceCfgSpaceHeader->commonHeader.command;
@@ -215,7 +215,7 @@ void intel8254x_init(pci_cfgspace_header_0_t *deviceCfgSpaceHeader)
 	deviceCfgSpaceHeader->commonHeader.command = commandRegister;
 	
 	// Read MAC address
-	uint32_t macLow = intel8254x_read(I8254X_REG_RAL);
+	uint32_t macLow = i219_read(I219_REG_RAL);
 	if(macLow != 0x00000000)
 	{
 		// MAC can be read from RAL[0]/RAH[0] MMIO directly
@@ -223,7 +223,7 @@ void intel8254x_init(pci_cfgspace_header_0_t *deviceCfgSpaceHeader)
 		macAddress[1] = (macLow >> 8) & 0xFF;
 		macAddress[2] = (macLow >> 16) & 0xFF;
 		macAddress[3] = (macLow >> 24) & 0xFF;
-		uint32_t macHigh = intel8254x_read(I8254X_REG_RAH);
+		uint32_t macHigh = i219_read(I219_REG_RAH);
 		macAddress[4] = macHigh & 0xFF;
 		macAddress[5] = (macHigh >> 8) & 0xFF;
 	}
@@ -241,39 +241,40 @@ void intel8254x_init(pci_cfgspace_header_0_t *deviceCfgSpaceHeader)
 		macAddress[4],
 		macAddress[5]
 	);
+	trace_printf("Device status: %08x\n", i219_read(I219_REG_STATUS));
 	
 	// Disable and clear all pending interrupts
-	intel8254x_write(I8254X_REG_IMC, 0xFFFFFFFF);
-	intel8254x_read(I8254X_REG_ICR);
+	i219_write(I219_REG_IMC, 0xFFFFFFFF);
+	i219_read(I219_REG_ICR);
 	
 	// Interrupt throttling: Wait 1000 * 256ns = 256us between interrupts
 	// TODO adjust this for performance optimization
-	//intel8254x_write(I8254X_REG_ITR, 1000);
-	intel8254x_write(I8254X_REG_ITR, 0);
+	//i219_write(I219_REG_ITR, 1000);
+	i219_write(I219_REG_ITR, 0);
 	// TODO is disabled for now to simplify receive packet handling logic - else the interrupt handler needed to process multiple packets at once
 	
 	// Device control register
-	uint32_t ctrl = intel8254x_read(I8254X_REG_CTRL);
+	uint32_t ctrl = i219_read(I219_REG_CTRL);
 	ctrl &= ~0x00000008; // LRST = 0 (disable reset)
 	ctrl |=  0x00000020; // ASDE = 1 (auto speed detection enable)
 	ctrl |=  0x00000040; // SLU = 1 (set link up)
-	intel8254x_write(I8254X_REG_CTRL, ctrl);
+	i219_write(I219_REG_CTRL, ctrl);
 	
 	// Clear multicast table array
 	for(int i = 0; i < 128; ++i)
-		intel8254x_write(I8254X_REG_MTA + 4 * i, 0x00000000);
+		i219_write(I219_REG_MTA + 4 * i, 0x00000000);
 	
 	// Allocate receive data buffer
 	uint64_t rxBufferMemPhy;
 	rxBufferMem = heap_alloc_contiguous(RX_DESC_COUNT * RX_BUFFER_SIZE, VM_R | VM_W, &rxBufferMemPhy);
 	if(!rxBufferMem)
-		panic("Could not allocate intel8254x receive data buffer.");
+		panic("Could not allocate i219 receive data buffer.");
 	
 	// Allocate and initialize receive descriptor buffer
 	uint64_t rxDescriptorsPhy;
 	rxDescriptors = heap_alloc_contiguous(RX_DESC_COUNT * sizeof(rx_desc_t), VM_R | VM_W, &rxDescriptorsPhy);
 	if(!rxDescriptors)
-		panic("Could not allocate intel8254x receive descriptor buffer.");
+		panic("Could not allocate i219 receive descriptor buffer.");
 	for(int i = 0; i < RX_DESC_COUNT; ++i)
 	{
 		// Initialize descriptor
@@ -285,24 +286,24 @@ void intel8254x_init(pci_cfgspace_header_0_t *deviceCfgSpaceHeader)
 	// Pass receive descriptor buffer
 	trace_printf("rxDescriptorsPhy = %012x\n", rxDescriptorsPhy);
 	trace_printf("rxBufferMemPhy = %012x\n", rxBufferMemPhy);
-	intel8254x_write(I8254X_REG_RDBAH, rxDescriptorsPhy >> 32);
-	intel8254x_write(I8254X_REG_RDBAL, rxDescriptorsPhy & 0xFFFFFFFF);
-	intel8254x_write(I8254X_REG_RDLEN, RX_DESC_COUNT * sizeof(rx_desc_t));
-	intel8254x_write(I8254X_REG_RDH, 0);
-	intel8254x_write(I8254X_REG_RDT, RX_DESC_COUNT - 1);
+	i219_write(I219_REG_RDBAH, rxDescriptorsPhy >> 32);
+	i219_write(I219_REG_RDBAL, rxDescriptorsPhy & 0xFFFFFFFF);
+	i219_write(I219_REG_RDLEN, RX_DESC_COUNT * sizeof(rx_desc_t));
+	i219_write(I219_REG_RDH, 0);
+	i219_write(I219_REG_RDT, RX_DESC_COUNT - 1);
 	rxTail = RX_DESC_COUNT - 1;
 	
 	// Allocate transmit data buffer
 	uint64_t txBufferMemPhy;
 	txBufferMem = heap_alloc_contiguous(TX_DESC_COUNT * TX_BUFFER_SIZE, VM_R | VM_W, &txBufferMemPhy);
 	if(!txBufferMem)
-		panic("Could not allocate intel8254x transmit data buffer.");
+		panic("Could not allocate i219 transmit data buffer.");
 	
 	// Allocate and initialize transmit descriptor buffer
 	uint64_t txDescriptorsPhy;
 	txDescriptors = heap_alloc_contiguous(TX_DESC_COUNT * sizeof(tx_desc_t), VM_R | VM_W, &txDescriptorsPhy);
 	if(!txDescriptors)
-		panic("Could not allocate intel8254x transmit descriptor buffer.");
+		panic("Could not allocate i219 transmit descriptor buffer.");
 	for(int i = 0; i < TX_DESC_COUNT; ++i)
 	{
 		// Initialize descriptor
@@ -318,24 +319,26 @@ void intel8254x_init(pci_cfgspace_header_0_t *deviceCfgSpaceHeader)
 	// Pass transmit descriptor buffer
 	trace_printf("txDescriptorsPhy = %012x\n", txDescriptorsPhy);
 	trace_printf("txBufferMemPhy = %012x\n", txBufferMemPhy);
-	intel8254x_write(I8254X_REG_TDBAH, txDescriptorsPhy >> 32);
-	intel8254x_write(I8254X_REG_TDBAL, txDescriptorsPhy & 0xFFFFFFFF);
-	intel8254x_write(I8254X_REG_TDLEN, TX_DESC_COUNT * sizeof(tx_desc_t));
-	intel8254x_write(I8254X_REG_TDH, 0);
-	intel8254x_write(I8254X_REG_TDT, 0);
+	i219_write(I219_REG_TDBAH, txDescriptorsPhy >> 32);
+	i219_write(I219_REG_TDBAL, txDescriptorsPhy & 0xFFFFFFFF);
+	i219_write(I219_REG_TDLEN, TX_DESC_COUNT * sizeof(tx_desc_t));
+	i219_write(I219_REG_TDH, 0);
+	i219_write(I219_REG_TDT, 0);
 	txTail = 0;
 	
 	// Transmit IPG: Use recommended values 10, 8 and 6
-	intel8254x_write(I8254X_REG_TIPG, (6 << 20) | (8 << 10) | 10);
+	i219_write(I219_REG_TIPG, (6 << 20) | (8 << 10) | 10);
 	
 	// Enable transmitter
 	uint32_t tctl = 0;
 	tctl |= 0x00000002; // EN (Transmitter Enable)
 	tctl |= 0x00000008; // PSP (Pad Short Packets)
 	tctl |= 0x000000F0; // 16 retries
-	tctl |= 0x00040000; // 64-byte Collision Distance
+	tctl |= 0x0003F000; // 64-byte Collision Distance
 	tctl |= 0x01000000; // RTLC (Re-transmit on Late Collision)
-	intel8254x_write(I8254X_REG_TCTL, tctl);
+	tctl |= 0x10000000; // Reserved (must be 1)
+	tctl |= 0x20000000; // 64-byte Read Request Threshold
+	i219_write(I219_REG_TCTL, tctl);
 	
 	// Enable receiver
 	uint32_t rctl = 0;
@@ -347,7 +350,7 @@ void intel8254x_init(pci_cfgspace_header_0_t *deviceCfgSpaceHeader)
 	//rctl |= 0x02000000; // BSEX (Buffer Size Extension)
 	rctl |= 0x04000000; // SECRC (Strip Ethernet CRC)
 	//rctl |= 0x00000018; // UPE+MPE (Promiscuous mode)           -> for testing only!
-	intel8254x_write(I8254X_REG_RCTL, rctl);
+	i219_write(I219_REG_RCTL, rctl);
 	
 	// Pre-allocate some buffers for the received packets list
 	receivedPacketsQueueStart = 0;
@@ -364,19 +367,19 @@ void intel8254x_init(pci_cfgspace_header_0_t *deviceCfgSpaceHeader)
 	}
 	
 	// Enable all interrupts
-	intel8254x_write(I8254X_REG_IMS, 0x1F6DC);
+	i219_write(I219_REG_IMS, 0x1F6DC);
 	
 	trace_printf("Network driver initialized.\n");
 }
 
-void intel8254x_get_mac_address(uint8_t *macBuffer)
+void i219_get_mac_address(uint8_t *macBuffer)
 {
 	// Copy MAC address
 	for(int i = 0; i < 6; ++i)
 		macBuffer[i] = macAddress[i];
 }
 
-void intel8254x_send(uint8_t *packet, int packetLength)
+void i219_send(uint8_t *packet, int packetLength)
 {
 	//trace_printf("Sending packet with length %d\n", packetLength);
 	
@@ -406,14 +409,14 @@ void intel8254x_send(uint8_t *packet, int packetLength)
 	++txTail;
 	if(txTail == TX_DESC_COUNT)
 		txTail = 0;
-	intel8254x_write(I8254X_REG_TDT, txTail);
+	i219_write(I219_REG_TDT, txTail);
 	
 	//trace_printf("Passing packet to device done.\n");
 }
 
 // Processes one received packet.
 // TODO use ITR (interrupt throttling register) to fire interrupts for multiple packets at once (less interrupts)
-static void intel8254x_receive()
+static void i219_receive()
 {
 	// Receive multiple packets
 	for(int p = 0; p < RX_DESC_COUNT; ++p)
@@ -428,18 +431,18 @@ static void intel8254x_receive()
 			uint8_t *packet = &rxBufferMem[newRxTail * RX_BUFFER_SIZE];
 			int packetLength = rxDescriptors[newRxTail].length;
 			
-			//trace_printf("Received descriptor with length %d\n", packetLength);
-			/*trace_printf("First bytes: ");
+			trace_printf("Received descriptor with length %d\n", packetLength);
+			trace_printf("First bytes: ");
 			int debugLen = (packetLength > 32 ? 32 : packetLength);
 			for(int i = 0; i < debugLen; ++i)
 				trace_printf("%02x ", packet[i]);
-			trace_printf("...\n");*/
+			trace_printf("...\n");
 			
 			// Errors?
 			if(rxDescriptors[newRxTail].errors)
 				trace_printf("Error byte in descriptor: %02x\n", rxDescriptors[newRxTail].errors);
-			else if(packetLength > I8254X_MTU)
-				panic("Received packet size %d exceeds assumed MTU %d!\n", packetLength, I8254X_MTU);
+			else if(packetLength > I219_MTU)
+				panic("Received packet size %d exceeds assumed MTU %d!\n", packetLength, I219_MTU);
 			else
 			{
 				// Allocate a receive buffer list entry
@@ -474,14 +477,14 @@ static void intel8254x_receive()
 			
 			// Update receive tail
 			rxTail = newRxTail;
-			intel8254x_write(I8254X_REG_RDT, rxTail);
+			i219_write(I219_REG_RDT, rxTail);
 		}
 		else
 			break; // No more received packets
 	}
 }
 
-int intel8254x_next_received_packet(uint8_t *packetBuffer)
+int i219_next_received_packet(uint8_t *packetBuffer)
 {
 	// Any packet available?
 	if(!receivedPacketsQueueStart)
@@ -505,19 +508,23 @@ int intel8254x_next_received_packet(uint8_t *packetBuffer)
 	return packetLength;
 }
 
-bool intel8254x_handle_interrupt(cpu_state_t *state)
+bool i219_handle_interrupt(cpu_state_t *state)
 {
+	// Ensure initialization is done
+	if(!deviceBar0Memory)
+		return false;
+	
 	// Read interrupt cause register
-	uint32_t icr = intel8254x_read(I8254X_REG_ICR);
+	uint32_t icr = i219_read(I219_REG_ICR);
 	if(!icr)
 		return false;
 	
 	// Handle set interrupts
 	//trace_printf("Intel8254x interrupt! ICR: %08x\n", icr);
-	if(icr & I8254X_INTR_RXT0)
+	if(icr & I219_INTR_RXT0)
 	{
 		// Receive timer expired, handle received packets
-		intel8254x_receive();
+		i219_receive();
 	}
 	return true;
 }
