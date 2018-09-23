@@ -43,7 +43,8 @@ void mcfg_scan(mcfg_t *mcfg)
 						pci_add_discovered_device(cfgSpaceHeaderCommon);
 						
 						// Debug output
-						trace_printf("     Vendor %04x  Device %04x  Command %04x  Status %04x  Class %02x:%02x  Header %02x\n",
+						trace_printf("     [%02x,%02x,%01x] Vendor %04x  Device %04x  Command %04x  Status %04x  Class %02x:%02x  Header %02x\n",
+						    b, d, f,
 							cfgSpaceHeaderCommon->vendorId,
 							cfgSpaceHeaderCommon->deviceId,
 							cfgSpaceHeaderCommon->command,
