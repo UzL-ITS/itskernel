@@ -75,3 +75,9 @@ Interrupts während syscalls? -> Scheduler könnte aktuellen Thread ändern, wä
 Aktuell nur KeyPress-Messages implementiert; sobald es mehr werden, wird ein gesonderter Message-Loop notwendig.
 
 Aktuell ist der Prozess-Heap nicht implementiert, stattdessen wird für jede Allokation ein Segment samt physikalischem Speicher allokiert.
+
+i219:
+	Die i219 ist nur die physikalische Schnittstelle (PHY), als Controller (MAC) fungiert Intels Sunrise Point PCH
+	i219 wird dennoch über PCIe wie gewohnt dargestellt, unter der spezifierten PCIe-Bus/Device/Function-Kombination (TODO check)
+	Sie bietet einen 0x20000 Bytes großen DMA-Konfigurations-Speicherbereich unter BAR0
+	Programmierung ist im Wesentlichen dieselbe wie für ICH8 (für welches eine Dokumentation existiert)
