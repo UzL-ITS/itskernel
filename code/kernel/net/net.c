@@ -55,24 +55,23 @@ void net_init(pci_cfgspace_header_0_t *deviceCfgSpaceHeader)
 		bool found = false;
 		if(net_is_device(deviceId, deviceIdsIntel8254x, sizeof(deviceIdsIntel8254x) / sizeof(deviceIdsIntel8254x[0])))
 		{
-			netdev_init = intel8254x_init;
-			netdev_get_mac_address = intel8254x_get_mac_address;
-			netdev_send = intel8254x_send;
-			netdev_next_received_packet = intel8254x_next_received_packet;
-			netdev_handle_interrupt = intel8254x_handle_interrupt;
+			netdev_init = &intel8254x_init;
+			netdev_get_mac_address = &intel8254x_get_mac_address;
+			netdev_send = &intel8254x_send;
+			netdev_next_received_packet = &intel8254x_next_received_packet;
+			netdev_handle_interrupt = &intel8254x_handle_interrupt;
 			found = true;
 		}
 		else if(net_is_device(deviceId, deviceIdsI219, sizeof(deviceIdsI219) / sizeof(deviceIdsI219[0])))
 		{
-			netdev_init = i219_init;
-			netdev_get_mac_address = i219_get_mac_address;
-			netdev_send = i219_send;
-			netdev_next_received_packet = i219_next_received_packet;
-			netdev_handle_interrupt = i219_handle_interrupt;
+			netdev_init = &i219_init;
+			netdev_get_mac_address = &i219_get_mac_address;
+			netdev_send = &i219_send;
+			netdev_next_received_packet = &i219_next_received_packet;
+			netdev_handle_interrupt = &i219_handle_interrupt;
 			found = true;
 		}
 		
-	
 		// If device was found, initialize it
 		if(found)
 			netdev_init(deviceCfgSpaceHeader);

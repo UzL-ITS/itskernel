@@ -59,6 +59,7 @@ static void _handle_pci_interrupt(cpu_state_t *state)
 	
 	// Pass interrupt to responsible device
 	net_handle_interrupt(state);
+	
 	//trace_printf("PCI interrupt handle end.\n");
 }
 

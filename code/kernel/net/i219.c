@@ -115,6 +115,9 @@ static received_packet_t *receivedPacketsQueueEnd;
 // Start node of the received packets buffer list.
 static received_packet_t *receivedPacketsBufferListStart;
 
+// Determines whether initialization is done.
+static bool initialized = false;
+
 
 // Reads the given device register using MMIO.
 static uint32_t i219_read(e1000_register_t reg)
@@ -209,65 +212,9 @@ void i219_init(pci_cfgspace_header_0_t *deviceCfgSpaceHeader)
 	i219_write(E1000_REG_ITR, 0);
 	// TODO is disabled for now to simplify receive packet handling logic - else the interrupt handler needed to process multiple packets at once
 	
-	
-	// TODO CONTINUE HERE
 	/* -- netdev.c :: e1000_configure */
 	
-	// ----  e1000e_set_rx_mode
-	// ----  e1000_configure_tx
-	// ----  e1000_setup_rctl
-	// ----  e1000_configure_rx
-	
-	
-	
-	// -- e1000_request_irq
-	// -- e1000_irq_enable
-	// -- e1000e_trigger_lsc
-	
-	
-	
-	
-	
-	
-	// Return hardware control
-	// TODO The e1000e driver does not do this?!
-	/*ctrlExt = i219_read(E1000_REG_CTRL_EXT);
-	ctrlExt &= ~E1000_CTRL_EXT_DRV_LOAD;
-	i219_write(E1000_REG_CTRL_EXT, ctrlExt);*/
-	
-	trace_printf("Network driver initialized.\n");
-	
-	///////////////////////////////////
-	
-	
-	// Allocate receive data buffer
-	uint64_t rxBufferMemPhy;
-	rxBufferMem = heap_alloc_contiguous(RX_DESC_COUNT * RX_BUFFER_SIZE, VM_R | VM_W, &rxBufferMemPhy);
-	if(!rxBufferMem)
-		panic("Could not allocate i219 receive data buffer.");
-	
-	// Allocate and initialize receive descriptor buffer
-	uint64_t rxDescriptorsPhy;
-	rxDescriptors = heap_alloc_contiguous(RX_DESC_COUNT * sizeof(rx_desc_t), VM_R | VM_W, &rxDescriptorsPhy);
-	if(!rxDescriptors)
-		panic("Could not allocate i219 receive descriptor buffer.");
-	for(int i = 0; i < RX_DESC_COUNT; ++i)
-	{
-		// Initialize descriptor
-		rx_desc_t *currDesc = &rxDescriptors[i];
-		currDesc->address = rxBufferMemPhy + i * RX_BUFFER_SIZE;
-		currDesc->status = 0;
-	}
-	
-	// Pass receive descriptor buffer
-	trace_printf("rxDescriptorsPhy = %012x\n", rxDescriptorsPhy);
-	trace_printf("rxBufferMemPhy = %012x\n", rxBufferMemPhy);
-	i219_write(E1000_REG_RDBAH, rxDescriptorsPhy >> 32);
-	i219_write(E1000_REG_RDBAL, rxDescriptorsPhy & 0xFFFFFFFF);
-	i219_write(E1000_REG_RDLEN, RX_DESC_COUNT * sizeof(rx_desc_t));
-	i219_write(E1000_REG_RDH, 0);
-	i219_write(E1000_REG_RDT, RX_DESC_COUNT - 1);
-	rxTail = RX_DESC_COUNT - 1;
+	/* ---- e1000_configure_tx */
 	
 	// Allocate transmit data buffer
 	uint64_t txBufferMemPhy;
@@ -302,31 +249,68 @@ void i219_init(pci_cfgspace_header_0_t *deviceCfgSpaceHeader)
 	i219_write(E1000_REG_TDT, 0);
 	txTail = 0;
 	
-	// Transmit IPG: Use recommended values 10, 8 and 6
-	i219_write(E1000_REG_TIPG, (6 << 20) | (8 << 10) | 10);
-	
 	// Enable transmitter
-	uint32_t tctl = 0;
-	tctl |= 0x00000002; // EN (Transmitter Enable)
-	tctl |= 0x00000008; // PSP (Pad Short Packets)
-	tctl |= 0x000000F0; // 16 retries
-	tctl |= 0x0003F000; // 64-byte Collision Distance
-	tctl |= 0x01000000; // RTLC (Re-transmit on Late Collision)
-	tctl |= 0x10000000; // Reserved (must be 1)
-	tctl |= 0x20000000; // 64-byte Read Request Threshold
+	uint32_t tctl = i219_read(E1000_REG_TCTL);
+	tctl |= E1000_TCTL_EN; // EN (Transmitter Enable)
+	tctl |= E1000_TCTL_PSP; // PSP (Pad Short Packets)
+	/*tctl &= ~E1000_TCTL_CT;
+	tctl |= 0x000000F0; // 16 retries Collision Threshold*/
+	/*tctl &= ~E1000_TCTL_COLD;
+	tctl |= 0x0003F000; // 64-byte Collision Distance*/
+	tctl |= E1000_TCTL_RTLC; // RTLC (Re-transmit on Late Collision)
+	trace_printf("TCTL = %08x\n", tctl);
 	i219_write(E1000_REG_TCTL, tctl);
 	
+	/* ---- e1000_setup_rctl */
+	/* ---- e1000_configure_rx */
+	
+	// Allocate receive data buffer
+	uint64_t rxBufferMemPhy;
+	rxBufferMem = heap_alloc_contiguous(RX_DESC_COUNT * RX_BUFFER_SIZE, VM_R | VM_W, &rxBufferMemPhy);
+	if(!rxBufferMem)
+		panic("Could not allocate i219 receive data buffer.");
+	
+	// Allocate and initialize receive descriptor buffer
+	uint64_t rxDescriptorsPhy;
+	rxDescriptors = heap_alloc_contiguous(RX_DESC_COUNT * sizeof(rx_desc_t), VM_R | VM_W, &rxDescriptorsPhy);
+	if(!rxDescriptors)
+		panic("Could not allocate i219 receive descriptor buffer.");
+	for(int i = 0; i < RX_DESC_COUNT; ++i)
+	{
+		// Initialize descriptor
+		rx_desc_t *currDesc = &rxDescriptors[i];
+		currDesc->address = rxBufferMemPhy + i * RX_BUFFER_SIZE;
+		currDesc->status = 0;
+	}
+	
+	// Pass receive descriptor buffer
+	trace_printf("rxDescriptorsPhy = %012x\n", rxDescriptorsPhy);
+	trace_printf("rxBufferMemPhy = %012x\n", rxBufferMemPhy);
+	i219_write(E1000_REG_RDBAH, rxDescriptorsPhy >> 32);
+	i219_write(E1000_REG_RDBAL, rxDescriptorsPhy & 0xFFFFFFFF);
+	i219_write(E1000_REG_RDLEN, RX_DESC_COUNT * sizeof(rx_desc_t));
+	i219_write(E1000_REG_RDH, 0);
+	i219_write(E1000_REG_RDT, RX_DESC_COUNT - 1);
+	rxTail = RX_DESC_COUNT - 1;
+	
 	// Enable receiver
-	uint32_t rctl = 0;
-	rctl |= 0x00000002; // EN (Receiver Enable)
-	rctl |= 0x00000004; // SBP (Store Pad Packets)
+	uint32_t rctl = i219_read(E1000_REG_RCTL);
+	rctl |= E1000_RCTL_EN; // EN (Receiver Enable)
+	rctl &= ~E1000_RCTL_SBP; // SBP (Store Pad Packets)
 	//rctl |= 0x00000020; // LPE (Long Packet Reception Enable)   -> MTU is set to 1522, thus we don't use this feature
-	rctl |= 0x00008000; // BAM (Broadcast Accept Mode)
-	rctl |= 0x00000000; // BSIZE = 2048 (Receive Buffer Size)
-	//rctl |= 0x02000000; // BSEX (Buffer Size Extension)
-	rctl |= 0x04000000; // SECRC (Strip Ethernet CRC)
+	rctl |= E1000_RCTL_BAM; // BAM (Broadcast Accept Mode)
+	rctl &= ~E1000_RCTL_SZ_4096;
+	rctl |= E1000_RCTL_SZ_2048; // BSIZE = 2048 (Receive Buffer Size)
+	rctl &= ~E1000_RCTL_BSEX;
+	rctl |= E1000_RCTL_SECRC; // SECRC (Strip Ethernet CRC)
 	//rctl |= 0x00000018; // UPE+MPE (Promiscuous mode)           -> for testing only!
+	trace_printf("RCTL = %08x\n", rctl);
 	i219_write(E1000_REG_RCTL, rctl);
+	
+	// TODO extended status?
+	
+
+	
 	
 	// Pre-allocate some buffers for the received packets list
 	receivedPacketsQueueStart = 0;
@@ -342,8 +326,20 @@ void i219_init(pci_cfgspace_header_0_t *deviceCfgSpaceHeader)
 		receivedPacketsBufferListStart = bufferEntry;
 	}
 	
-	// Enable all interrupts
-	i219_write(E1000_REG_IMS, 0x1F6DC);
+	/* -- e1000_irq_enable */
+	/* -- e1000e_trigger_lsc */
+	
+	// Enable receive interrupt
+	i219_write(E1000_REG_IMS, E1000_IMS_RXT0 | E1000_IMS_TXDW | E1000_IMS_RXDMT0 | E1000_IMS_RXSEQ | E1000_IMS_LSC);
+	
+	// Return hardware control
+	// TODO The e1000e driver does not do this?!
+	/*ctrlExt = i219_read(E1000_REG_CTRL_EXT);
+	ctrlExt &= ~E1000_CTRL_EXT_DRV_LOAD;
+	i219_write(E1000_REG_CTRL_EXT, ctrlExt);*/
+	
+	trace_printf("Device status: %08x\n", i219_read(E1000_REG_STATUS));
+	trace_printf("Network driver initialized.\n");
 }
 
 void i219_get_mac_address(uint8_t *macBuffer)
@@ -386,6 +382,8 @@ void i219_send(uint8_t *packet, int packetLength)
 	i219_write(E1000_REG_TDT, txTail);
 	
 	//trace_printf("Passing packet to device done.\n");
+	
+	trace_printf("RX err: %08x\n", i219_read(0x0400C));
 }
 
 // Processes one received packet.
@@ -485,16 +483,18 @@ int i219_next_received_packet(uint8_t *packetBuffer)
 bool i219_handle_interrupt(cpu_state_t *state)
 {
 	// Ensure initialization is done
-	if(!deviceBar0Memory)
+	if(!initialized)
 		return false;
+	trace_printf("i219_handle_interrupt 1\n");
 	
 	// Read interrupt cause register
 	uint32_t icr = i219_read(E1000_REG_ICR);
 	if(!icr)
 		return false;
+	trace_printf("i219_handle_interrupt 2\n");
 	
 	// Handle set interrupts
-	//trace_printf("Intel8254x interrupt! ICR: %08x\n", icr);
+	trace_printf("Intel8254x interrupt! ICR: %08x\n", icr);
 	if(icr & E1000_ICR_RXT0)
 	{
 		// Receive timer expired, handle received packets

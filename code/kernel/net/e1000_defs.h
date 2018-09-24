@@ -51,7 +51,6 @@ typedef enum
 	E1000_REG_EXTCNF_CTRL = 0x00F00, /* Extended Configuration Control */
 	E1000_REG_EXTCNF_SIZE = 0x00F08, /* Extended Configuration Size */
 	E1000_REG_PHY_CTRL = 0x00F10, /* PHY Control Register in CSR */
-	E1000_REG_POEMB	E1000_PHY_CTRL, /* PHY OEM Bits */
 	E1000_REG_PBA = 0x01000, /* Packet Buffer Allocation - RW */
 	E1000_REG_PBS = 0x01008, /* Packet Buffer Size */
 	E1000_REG_PBECCSTS = 0x0100C, /* Packet Buffer ECC Status - RW */
@@ -70,6 +69,21 @@ typedef enum
 	E1000_REG_RDFPC = 0x02430, /* Rx Data FIFO Packet Count - RW */
 	E1000_REG_RDTR = 0x02820, /* Rx Delay Timer - RW */
 	E1000_REG_RADV = 0x0282C, /* Rx Interrupt Absolute Delay Timer - RW */
+	
+	E1000_REG_RAL = 0x05400, // Receive Address Low
+	E1000_REG_RAH = 0x05404, // Receive Address High
+	E1000_REG_RDBAL = 0x02800, // RX Descriptor Base Address Low
+	E1000_REG_RDBAH = 0x02804, // RX Descriptor Base Address High
+	E1000_REG_RDLEN = 0x02808, // RX Descriptor Length
+	E1000_REG_RDH = 0x02810, // RX Descriptor Head
+	E1000_REG_RDT = 0x02818, // RX Descriptor Tail
+	E1000_REG_TDBAL = 0x03800, // TX Descriptor Base Address Low
+	E1000_REG_TDBAH = 0x03804, // TX Descriptor Base Address High
+	E1000_REG_TDLEN = 0x03808, // TX Descriptor Length
+	E1000_REG_TDH = 0x03810, // TX Descriptor Head
+	E1000_REG_TDT = 0x03818, // TX Descriptor Tail
+	
+	E1000_REG_MTA = 0x05200
 } e1000_register_t;
 
 /* Device Control */
@@ -195,7 +209,7 @@ typedef enum
 	E1000_RCTL_PMCF = 0x00800000, /* pass MAC control frames */
 	E1000_RCTL_BSEX = 0x02000000, /* Buffer size extension */
 	E1000_RCTL_SECRC = 0x04000000, /* Strip Ethernet CRC */
-} e1000_tx_ctrl_flags_t;
+} e1000_rx_ctrl_flags_t;
 
 /* Transmit Descriptor bit definitions */
 typedef enum

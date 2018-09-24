@@ -222,6 +222,31 @@ void main()
 					printf_locked("Program file not found.\n");
 			}
 		}
+		else if(strcmp(args[0], "test") == 0)
+		{
+			uint8_t mac[6];
+			sys_get_network_mac_address(mac);
+			printf("MAC: %02x:%02x:%02x:%02x:%02x:%02x\n", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+			
+			uint8_t packet[] =
+			{
+				0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+				mac[0], mac[1], mac[2], mac[3], mac[4], mac[5],
+				0x08, 0x06,
+				
+				0x00, 0x01,
+				0x08, 0x00,
+				0x06,
+				0x04,
+				0x00, 0x01,
+				mac[0], mac[1], mac[2], mac[3], mac[4], mac[5],
+				0x8D, 0x53, 0x3E, 0x2C,
+				0xFF, 0xFF, 0xFF, 0xFF,	0xFF, 0xFF,
+				0x8D, 0x53, 0x3E, 0xE8
+			};
+			sys_send_network_packet(packet, sizeof(packet));
+			printf("Packet sent.\n");
+		}
 		else
 			printf_locked("Unknown command.\n");
 		
