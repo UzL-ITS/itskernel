@@ -67,7 +67,7 @@ typedef struct cpu
 
 	// The CPU core ID.
 	int coreId;
-
+	
 	// The CPU's TLB queue.
 	tlb_op_t tlbOperationQueue[TLB_OP_QUEUE_SIZE];
 	
@@ -76,6 +76,7 @@ typedef struct cpu
 } cpu_t;
 
 extern list_t cpu_list;
+extern int cpuCount;
 
 void cpu_bsp_init(void);
 bool cpu_ap_init(cpu_lapic_id_t lapic_id, cpu_acpi_id_t acpi_id);

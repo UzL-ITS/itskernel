@@ -74,6 +74,9 @@ static bool queue_retrieve(vkey_t *keyCode, bool *shiftPressed);
 // Frequently polls the OS for new key presses and stores them in an internal queue.
 static void keyboard_thread(void *args)
 {
+	// Run on Core #0
+	set_thread_affinity(0);
+	
 	// Run until OS terminates this process
 	// TODO cleaner exit?
 	while(true)

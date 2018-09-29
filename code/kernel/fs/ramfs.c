@@ -7,9 +7,9 @@ and to its first and last child directories on the next level.
 /* INCLUDES */
 
 #include <fs/ramfs.h>
-#include <memory.h>
-#include <io.h>
-#include <string.h>
+#include <stdlib/stdlib.h>
+#include <stdlib/string.h>
+#include <lock/spinlock.h>
 
 
 /* TYPES */
@@ -18,7 +18,7 @@ and to its first and last child directories on the next level.
 typedef struct ramfs_file_s
 {
 	// Name of this file.
-	char name[256];
+	char name[64];
 
 	// Pointer to the file contents.
 	void *data;
@@ -35,7 +35,7 @@ typedef struct ramfs_file_s
 typedef struct ramfs_directory_s
 {
 	// Name of this directory.
-	char name[256];
+	char name[64];
 
 	// The next directory on the current level.
 	struct ramfs_directory_s *next;
@@ -58,7 +58,13 @@ typedef struct ramfs_directory_s
 /* VARIABLES */
 
 // The root directory.
-ramfs_directory_t *root;
+static ramfs_directory_t *root;
+
+// The total amount of directories and files.
+static int totalEntryCount = 0;
+
+// Lock to protect file system structure on simultaneous access.
+static spinlock_t ramfsLock = SPIN_UNLOCKED;
 
 
 /* FUNCTIONS */
@@ -73,6 +79,7 @@ void ramfs_init()
 	root->lastChild = 0;
 	root->firstFile = 0;
 	root->lastFile = 0;
+	totalEntryCount = 1;
 }
 
 // Traverses the directory tree according to the given path and returns a pointer to the most deeply nested directory.
@@ -137,17 +144,25 @@ ramfs_err_t ramfs_create_directory(const char *path, const char *name)
 		if(*n == '/')
 			return RAMFS_ERR_ILLEGAL_CHARACTER;
 
+	spin_lock(&ramfsLock);
+		
 	// Get sub directory where the new directory shall be placed in
 	ramfs_directory_t *parentDirectory;
 	int pathLength = strlen(path);
 	ramfs_err_t err = traverse_tree(path, pathLength, &parentDirectory);
 	if(err != RAMFS_ERR_OK)
+	{
+		spin_unlock(&ramfsLock);
 		return err;
-
+	}
+		
 	// Check whether directory exists already
 	for(ramfs_directory_t *subDir = parentDirectory->firstChild; subDir; subDir = subDir->next)
 		if(strcmp(subDir->name, name) == 0)
+		{
+			spin_unlock(&ramfsLock);
 			return RAMFS_ERR_DIRECTORY_EXISTS;
+		}
 
 	// Create directory
 	ramfs_directory_t *directory = (ramfs_directory_t *)malloc(sizeof(ramfs_directory_t));
@@ -164,8 +179,10 @@ ramfs_err_t ramfs_create_directory(const char *path, const char *name)
 	else
 		parentDirectory->firstChild = directory; // The parent directory does not have any sub directories yet
 	parentDirectory->lastChild = directory;
+	++totalEntryCount;
 
 	// Done
+	spin_unlock(&ramfsLock);
 	return RAMFS_ERR_OK;
 }
 
@@ -176,22 +193,34 @@ ramfs_err_t ramfs_create_file(const char *path, const char *name, void *data, in
 		if(*n == '/')
 			return RAMFS_ERR_ILLEGAL_CHARACTER;
 
+	spin_lock(&ramfsLock);
+	
 	// Get sub directory where the new file shall be placed in
 	ramfs_directory_t *directory;
 	int pathLength = strlen(path);
 	ramfs_err_t err = traverse_tree(path, pathLength, &directory);
 	if(err != RAMFS_ERR_OK)
+	{
+		spin_unlock(&ramfsLock);
 		return err;
+	}
 
 	// Check whether file exists already
 	for(ramfs_file_t *f = directory->firstFile; f; f = f->next)
 		if(strcmp(f->name, name) == 0)
-			return RAMFS_ERR_FILE_EXISTS;
+		{
+			spin_unlock(&ramfsLock);
+			return RAMFS_ERR_DIRECTORY_EXISTS;
+		}
+	
+	// Allocate buffer for file data
+	void *dataKernel = malloc(dataLength);
+	memcpy(dataKernel, data, dataLength);
 
 	// Create file
 	ramfs_file_t *file = (ramfs_file_t *)malloc(sizeof(ramfs_file_t));
 	strncpy(file->name, name, sizeof(file->name));
-	file->data = data;
+	file->data = dataKernel;
 	file->dataLength = dataLength;
 	file->next = 0;
 
@@ -201,12 +230,14 @@ ramfs_err_t ramfs_create_file(const char *path, const char *name, void *data, in
 	else
 		directory->firstFile = file; // The directory does not have any files yet
 	directory->lastFile = file;
+	++totalEntryCount;
 
 	// Done
+	spin_unlock(&ramfsLock);
 	return RAMFS_ERR_OK;
 }
 
-ramfs_err_t ramfs_get_file(const char *path, void **dataPtr, int *dataLengthPtr)
+static ramfs_err_t ramfs_get_file_entry(const char *path, ramfs_file_t **fileEntryPtr)
 {
 	// The path must not end with a slash
 	int pathLength = strlen(path);
@@ -238,11 +269,8 @@ ramfs_err_t ramfs_get_file(const char *path, void **dataPtr, int *dataLengthPtr)
 	for(ramfs_file_t *file = directory->firstFile; file; file = file->next)
 		if(strcmp(file->name, fileNameStart) == 0)
 		{
-			// Return file contents
-			if(dataPtr)
-				*dataPtr = file->data;
-			if(dataLengthPtr)
-				*dataLengthPtr = file->dataLength;
+			// Return file info struct
+			*fileEntryPtr = file;
 			return RAMFS_ERR_OK;
 		}
 
@@ -250,29 +278,125 @@ ramfs_err_t ramfs_get_file(const char *path, void **dataPtr, int *dataLengthPtr)
 	return RAMFS_ERR_FILE_DOES_NOT_EXIST;
 }
 
-// Helper function to recursively dump a directory.
-static void dump_recursive(ramfs_directory_t *directory, int level)
+ramfs_err_t ramfs_get_file(const char *path, void *dataBuffer, int dataBufferLength)
 {
-	// Print name of directory
-	for(int l = 0; l < level; ++l)
-		printf("  ");
-	printf("%s/\n", directory->name);
+	spin_lock(&ramfsLock);
+	
+	// Get file info struct
+	ramfs_file_t *file;
+	ramfs_err_t err = ramfs_get_file_entry(path, &file);
+	if(err != RAMFS_ERR_OK)
+	{
+		spin_unlock(&ramfsLock);
+		return err;
+	}
+	
+	// Check buffer size
+	if(dataBufferLength < file->dataLength)
+	{
+		spin_unlock(&ramfsLock);
+		return RAMFS_ERR_BUFFER_TOO_SMALL;
+	}
+	
+	// Copy data
+	memcpy(dataBuffer, file->data, file->dataLength);
+	
+	spin_unlock(&ramfsLock);
+	return RAMFS_ERR_OK;
+}
+
+ramfs_err_t ramfs_get_file_info(const char *path, int *dataLengthPtr)
+{
+	spin_lock(&ramfsLock);
+	
+	// Get file info struct
+	ramfs_file_t *file;
+	ramfs_err_t err = ramfs_get_file_entry(path, &file);
+	if(err != RAMFS_ERR_OK)
+	{
+		spin_unlock(&ramfsLock);
+		return err;
+	}
+	
+	// Copy infos
+	*dataLengthPtr = file->dataLength;
+	
+	spin_unlock(&ramfsLock);
+	return RAMFS_ERR_OK;
+}
+
+// Helper function to recursively dump a directory.
+static int dump_recursive(ramfs_directory_t *directory, int level, char *buffer, int bufferPos)
+{
+	// Indent name of directory
+	for(int l = 0; l < 2 * level; ++l)
+		buffer[bufferPos++] = ' ';
+	
+	// Name of directory
+	int directoryNameLength = strlen(directory->name);
+	strncpy(&buffer[bufferPos], directory->name, directoryNameLength);
+	bufferPos += directoryNameLength;
+	buffer[bufferPos++] = '/';
+	
+	// New line
+	buffer[bufferPos++] = '\n';
 
 	// Print files
 	for(ramfs_file_t *file = directory->firstFile; file; file = file->next)
 	{
-		for(int l = 0; l < level + 1; ++l)
-			printf("  ");
-		printf("%s (%d bytes)\n", file->name, file->dataLength);
+		// Indent
+		for(int l = 0; l < 2 * (level + 1); ++l)
+			buffer[bufferPos++] = ' ';
+		
+		// Name
+		int fileNameLength = strlen(file->name);
+		strncpy(&buffer[bufferPos], file->name, fileNameLength);
+		bufferPos += fileNameLength;
+		
+		// Size begin
+		strncpy(&buffer[bufferPos], " (", 1 + 1);
+		bufferPos += 1 + 1;
+		
+		// Size
+		char sizeBuffer[16];
+		itoa(file->dataLength, sizeBuffer, 10);
+		int sizeLength = strlen(sizeBuffer);
+		strncpy(&buffer[bufferPos], sizeBuffer, sizeLength);
+		bufferPos += sizeLength;
+		
+		// Size end
+		strncpy(&buffer[bufferPos], " bytes)\n", 1 + 5 + 1 + 1);
+		bufferPos += 1 + 5 + 1 + 1;
 	}
 
 	// Print sub directories
 	for(ramfs_directory_t *subDir = directory->firstChild; subDir; subDir = subDir->next)
-		dump_recursive(subDir, level + 1);
+		bufferPos = dump_recursive(subDir, level + 1, buffer, bufferPos);
+	
+	return bufferPos;
 }
 
-void ramfs_dump()
+void ramfs_dump(char *buffer, int bufferLength)
 {
+	spin_lock(&ramfsLock);
+	
+	// Check buffer size
+	if(bufferLength < ramfs_dump_get_buffer_size())
+	{
+		// Output error message
+		strncpy(buffer, "Wrong buffer size", 5 + 1 + 6 + 1 + 4);
+		spin_unlock(&ramfsLock);
+		return;
+	}
+	
 	// Run recursively through directory tree
-	dump_recursive(root, 0);
+	int bufferPos = dump_recursive(root, 0, buffer, 0);
+	buffer[bufferPos] = '\0';
+	spin_unlock(&ramfsLock);
+}
+
+int ramfs_dump_get_buffer_size()
+{
+	// 64 bytes for the entry name and 64 bytes for padding / other information
+	return totalEntryCount * 128;
 }

@@ -73,64 +73,75 @@ void sched_tick(cpu_state_t *state)
 	cpu_t *cpu = cpu_get();
 
 	/* figure out what thread is currently running on the CPU */
-	thread_t *cur_thread = cpu->thread;
-	thread_t *new_thread = 0;
+	thread_t *currThread = cpu->thread;
 
 	spin_lock(&thread_queue_lock);
 
 	/* add the current thread to the queue if it is runnable */
-	if (cur_thread && cur_thread->state == THREAD_RUNNING)
-	{
-		list_add_tail(&thread_queue, &cur_thread->sched_node);
-	}
-
+	if(currThread && currThread->state == THREAD_RUNNING)
+		list_add_tail(&thread_queue, &currThread->sched_node);
+	
 	/* pick the next thread to run */
-	list_node_t *head = thread_queue.head;
-	if (head)
+	list_node_t *nextThreadNode = thread_queue.head;
+	thread_t *nextThread = 0;
+	while(nextThreadNode)
 	{
-		new_thread = container_of(head, thread_t, sched_node);
-		list_remove(&thread_queue, head);
+		// Get thread object
+		thread_t *nextThreadCandidate = container_of(nextThreadNode, thread_t, sched_node);
+		
+		// Thread runnable by current core?
+		if(nextThreadCandidate->coreId != cpu->coreId)
+		{
+			// Check next thread
+			nextThreadNode = nextThreadNode->next;
+			continue;
+		}
+		
+		// Thread can be run, remove it from the queue
+		nextThread = nextThreadCandidate;
+		list_remove(&thread_queue, nextThreadNode);
+		break;
 	}
 	
-	// TODO the register file copy below causes a race condition, when another core picks up execution of cur_thread before the whole state was copied
+	// TODO the register file copy below causes a race condition, when another core picks up execution of currThread before the whole state was copied
 	//      Temporary fix: Lock the entire scheduler step
 	//spin_unlock(&thread_queue_lock);
 
 	/* if there is no new thread, switch to the idle thread */
-	if (!new_thread)
-		new_thread = cpu->idle_thread;
+	if(!nextThread)
+		nextThread = cpu->idle_thread;
 
 	/* check if we're actually switching threads */
-	if (cur_thread != new_thread)
+	if(currThread != nextThread)
 	{
 		/* actually swap the pointers over */
-		cpu->thread = new_thread;
+		cpu->thread = nextThread;
 
 		/* save the register file for the current thread */
-		if (cur_thread)
+		if(currThread)
 		{
-			memcpy(cur_thread->regs, state->regs, sizeof(state->regs));
-			cur_thread->rip = state->rip;
-			cur_thread->rsp = state->rsp;
-			cur_thread->rflags = state->rflags;
-			cur_thread->cs = state->cs;
-			cur_thread->ss = state->ss;
+			memcpy(currThread->regs, state->regs, sizeof(state->regs));
+			currThread->rip = state->rip;
+			currThread->rsp = state->rsp;
+			currThread->rflags = state->rflags;
+			currThread->cs = state->cs;
+			currThread->ss = state->ss;
 		}
 
 		/* restore the register file for the new thread */
-		memcpy(state->regs, new_thread->regs, sizeof(state->regs));
-		state->rip = new_thread->rip;
-		state->rsp = new_thread->rsp;
-		state->rflags = new_thread->rflags;
-		state->cs = new_thread->cs;
-		state->ss = new_thread->ss;
+		memcpy(state->regs, nextThread->regs, sizeof(state->regs));
+		state->rip = nextThread->rip;
+		state->rsp = nextThread->rsp;
+		state->rflags = nextThread->rflags;
+		state->cs = nextThread->cs;
+		state->ss = nextThread->ss;
 
 		/* if we're switcing between processes, we need to switch address spaces */
-		if (!cur_thread || cur_thread->proc != new_thread->proc)
-			proc_switch(new_thread->proc); /* (this also sets cpu->proc) */
+		if(!currThread || currThread->proc != nextThread->proc)
+			proc_switch(nextThread->proc); /* (this also sets cpu->proc) */
 
 		/* write new kernel stack pointer into the TSS */
-		tss_set_rsp0(new_thread->kernel_rsp);
+		tss_set_rsp0(nextThread->kernel_rsp);
 	}
 
 	spin_unlock(&thread_queue_lock);

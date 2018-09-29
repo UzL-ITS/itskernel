@@ -8,6 +8,7 @@ ITS kernel LWIP port main file.
 #include <stdbool.h>
 #include <internal/syscall/syscalls.h>
 #include <threading/lock.h>
+#include <threading/thread.h>
 #include "itsnetif.h"
 
 #include "lwip/inet.h"
@@ -98,6 +99,9 @@ uint32_t sys_now()
 
 void itslwip_run(void *args)
 {
+	// Run on Core #0
+	set_thread_affinity(0);
+	
 	// Initialize and acquire mutex
 	mutex_init(&lwipMutex);
 	mutex_acquire(&lwipMutex);
@@ -106,9 +110,10 @@ void itslwip_run(void *args)
 	lwip_init();
 	
 	// Initialize LWIP network interface
-	inet_aton("141.83.62.44", &address);
-	inet_aton("255.255.255.0", &netmask);
-	inet_aton("141.83.62.1", &gatewayAddress);
+	char **addressData = (char **)args;
+	inet_aton(addressData[0], &address);
+	inet_aton(addressData[1], &netmask);
+	inet_aton(addressData[2], &gatewayAddress);
 	if(!netif_add(&lwipNetif, &address, &netmask, &gatewayAddress, 0, &itsnetif_init, &ethernet_input))
 	{
 		printf_locked("Error in netif_add()\n");

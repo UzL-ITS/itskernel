@@ -8,6 +8,7 @@
 #include <panic/panic.h>
 #include <trace/trace.h>
 #include <proc/elf64.h>
+#include <smp/cpu.h>
 
 void sys_run_thread(uint64_t rip)
 {
@@ -60,4 +61,15 @@ bool sys_start_process(uint8_t *program, int programLength)
 	// Restore current process
 	proc_switch(currProc);
 	return true;
+}
+
+void sys_set_affinity(int coreId)
+{
+	// ID valid?
+	if(coreId < 0 || coreId >= cpuCount)
+		return;
+	
+	// Set affinity of current thread
+	thread_t *thread = thread_get();
+	thread->coreId = coreId;
 }

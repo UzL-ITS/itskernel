@@ -13,4 +13,6 @@
 
 void cpu_id(uint32_t code, uint32_t *eax, uint32_t *ebx, uint32_t *ecx, uint32_t *edx);
 
+void cpu_id_special(uint32_t eaxIn, uint32_t ecxIn, uint32_t *eaxOut, uint32_t *ebxOut, uint32_t *ecxOut, uint32_t *edxOut);
+
 #endif

@@ -11,6 +11,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <trace/trace.h>
+#include <smp/topology.h>
 
 static void madt_flags_to_trigger(irq_tuple_t *tuple, uint16_t flags)
 {
@@ -76,7 +77,7 @@ void madt_scan(madt_t *madt)
         {
           uint8_t id  = entry->lapic.id;
           uint8_t apic_id = entry->lapic.apic_id;
-
+		  
           if (bsp)
           {
             bsp = false;
@@ -128,7 +129,6 @@ void madt_scan(madt_t *madt)
         break;
     }
   }
-
   /* mask the PICs if they are present */
   if (madt->flags & MADT_FLAGS_PCAT)
     pic_init();

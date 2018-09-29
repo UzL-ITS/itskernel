@@ -10,6 +10,7 @@ ITS kernel standard library I/O interface.
 #include <internal/terminal/terminal.h>
 #include <string.h>
 #include <memory.h>
+#include <internal/syscall/syscalls.h>
 
 
 /* VARIABLES */
@@ -91,4 +92,44 @@ char *getline()
 		}
 	}
 	return 0;
+}
+
+fs_err_t create_directory(const char *path, const char *name)
+{
+	// Call system function
+	return sys_create_directory(path, name);
+}
+
+fs_err_t create_file(const char *path, const char *name, void *data, int dataLength)
+{
+	// Call system function
+	return sys_create_file(path, name, data, dataLength);
+}
+
+fs_err_t get_file(const char *path, void **dataPtr, int *dataLengthPtr)
+{
+	// Get file size
+	fs_err_t err = sys_get_file_info(path, dataLengthPtr);
+	if(err != RAMFS_ERR_OK)
+		return err;
+		
+	// Allocate memory for file contents
+	*dataPtr = malloc(*dataLengthPtr);
+	
+	// Get file contents
+	return sys_get_file(path, *dataPtr, *dataLengthPtr);
+}
+
+void dump_files()
+{
+	// Allocate buffer
+	int lsBufferSize = sys_dump_files_get_buffer_size();
+	char *lsBuffer = malloc(lsBufferSize);
+	
+	// Retrieve and print file system tree
+	sys_dump_files(lsBuffer, lsBufferSize);
+	printf("%s\n", lsBuffer);
+	
+	// Done
+	free(lsBuffer);
 }

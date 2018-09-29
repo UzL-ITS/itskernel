@@ -43,6 +43,7 @@ thread_t *thread_create(proc_t *proc, int flags)
   thread->rsp = (flags & THREAD_KERNEL) ? ((uintptr_t) thread->kstack + KERNEL_STACK_SIZE) : ((uintptr_t) thread->stack + USER_STACK_SIZE);
   thread->kernel_rsp = (uintptr_t) thread->kstack + KERNEL_STACK_SIZE;
   thread->rflags = FLAGS_IF;
+  thread->coreId = 0; // Use bootstrap processor by default
 
   if (flags & THREAD_KERNEL)
   {

@@ -53,6 +53,9 @@ typedef struct
 
   /* process which 'owns' this thread */
   struct proc *proc;
+  
+  // ID of the core this thread shall be run on.
+  int coreId;
 
   /* register file for this thread */
   uint64_t regs[15];

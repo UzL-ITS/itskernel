@@ -19,6 +19,7 @@ typedef int tcp_handle_t;
 /* DECLARATIONS */
 
 // ITS kernel LWIP thread main function.
+// args contains three char pointers to the IP address, the subnet mask and the gateway, respectively.
 void itslwip_run(void *args);
 
 // Creates a TCP connection to the given target address and port, and returns a handle for that connection (or -1 on errors).

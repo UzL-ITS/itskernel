@@ -33,6 +33,7 @@
 #include <vbe/vbe.h>
 #include <io/keyboard.h>
 #include <pci/pci.h>
+#include <fs/ramfs.h>
 
 // Determines whether 1G pages are enabled (from mm/common.h). Is set in init().
 bool enable1gPages;
@@ -175,7 +176,7 @@ noreturn void init(uint32_t magic, multiboot_t *multiboot)
 	
 	// Set interrupt stack pointer for bootstrap processor
     tss_set_rsp0(cpu_get()->idle_thread->rsp);
-
+	
 	/* set up symmetric multi-processing */
 	if(!up_fallback)
 	{
@@ -191,6 +192,9 @@ noreturn void init(uint32_t magic, multiboot_t *multiboot)
 	
 	// Initialize I/O devices
 	keyboard_init();
+	
+	// Initialize RAM file system
+	ramfs_init();
 
 	/* set up modules */
 	// Do this BEFORE starting the scheduler, else we might run into a race condition where the scheduler interrupt fires too soon, leaving execution stuck in the idle() process

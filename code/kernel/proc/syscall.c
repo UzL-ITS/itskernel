@@ -42,6 +42,14 @@ uintptr_t syscall_table[] =
 	/* 21 */ (uintptr_t)&sys_receive_network_packet,
 	/* 22 */ (uintptr_t)&sys_send_network_packet,
 	/* 23 */ (uintptr_t)&sys_start_process,
+	/* 24 */ (uintptr_t)&sys_info,
+	/* 25 */ (uintptr_t)&sys_set_affinity,
+	/* 26 */ (uintptr_t)&sys_create_directory,
+	/* 27 */ (uintptr_t)&sys_create_file,
+	/* 28 */ (uintptr_t)&sys_get_file,
+	/* 29 */ (uintptr_t)&sys_get_file_info,
+	/* 30 */ (uintptr_t)&sys_dump_files,
+	/* 31 */ (uintptr_t)&sys_dump_files_get_buffer_size,
 };
 uint64_t syscall_table_size = sizeof(syscall_table) / sizeof(*syscall_table);
 

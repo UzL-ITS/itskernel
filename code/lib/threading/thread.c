@@ -57,3 +57,10 @@ void run_thread(thread_func_t funcPtr, void *funcArgsPtr)
 	uint64_t wrapperFuncAddress = (uint64_t)&thread_wrapper;
 	sys_run_thread(wrapperFuncAddress);
 }
+
+void set_thread_affinity(int coreId)
+{
+	// Set affinity
+	// Input checking is done by system call implementation
+	sys_set_affinity(coreId);
+}

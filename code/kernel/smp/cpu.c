@@ -5,6 +5,7 @@
 #include <stdlib/string.h>
 
 list_t cpu_list = LIST_EMPTY;
+int cpuCount = 0;
 
 static cpu_t cpu_bsp;
 
@@ -24,6 +25,7 @@ void cpu_bsp_init(void)
   msr_write(MSR_GS_KERNEL_BASE, (uint64_t) &cpu_bsp);
 
   list_add_tail(&cpu_list, &cpu_bsp.node);
+  ++cpuCount;
 }
 
 bool cpu_ap_init(cpu_lapic_id_t lapic_id, cpu_acpi_id_t acpi_id)
@@ -44,6 +46,7 @@ bool cpu_ap_init(cpu_lapic_id_t lapic_id, cpu_acpi_id_t acpi_id)
   cpu->tlbOperationQueueLength = 0;
 
   list_add_tail(&cpu_list, &cpu->node);
+  ++cpuCount;
   return true;
 }
 

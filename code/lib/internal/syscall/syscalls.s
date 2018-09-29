@@ -79,3 +79,11 @@ syscallwrapper sys_get_network_mac_address, 20
 syscallwrapper sys_receive_network_packet, 21
 syscallwrapper sys_send_network_packet, 22
 syscallwrapper sys_start_process, 23
+syscallwrapper sys_info, 24
+syscallwrapper sys_set_affinity, 25
+syscallwrapper sys_create_directory, 26
+syscallwrapper4 sys_create_file, 27
+syscallwrapper sys_get_file, 28
+syscallwrapper sys_get_file_info, 29
+syscallwrapper sys_dump_files, 30
+syscallwrapper sys_dump_files_get_buffer_size, 31

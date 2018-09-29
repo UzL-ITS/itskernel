@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <cpu/state.h>
 #include <proc/msg.h>
+#include <fs/ramfs.h>
 
 // Prints the given string to kernel console. TODO remove, this is only for debugging
 int64_t sys_trace(const char *message);
@@ -79,5 +80,29 @@ int sys_receive_network_packet(uint8_t *packetBuffer);
 
 // Sends the given network packet.
 void sys_send_network_packet(uint8_t *packet, int packetLength);
+
+// Copies system information into the given buffer.
+void sys_info(int infoId, uint8_t *buffer);
+
+// Sets the core the current thread shall be run on.
+void sys_set_affinity(int coreId);
+
+// Creates a new directory under the given path.
+ramfs_err_t sys_create_directory(const char *path, const char *name);
+
+// Creates a new file at the given path.
+ramfs_err_t sys_create_file(const char *path, const char *name, void *data, int dataLength);
+
+// Returns the contents of the given file.
+ramfs_err_t sys_get_file(const char *path, void *dataBuffer, int dataBufferLength);
+
+// Returns the metadata of the given file.
+ramfs_err_t sys_get_file_info(const char *path, int *dataLengthPtr);
+
+// Dumps the entire file system tree into the given string buffer.
+void sys_dump_files(char *buffer, int bufferLength);
+
+// Returns the size of the string buffer that is needed to write the entire tree.
+int sys_dump_files_get_buffer_size();
 	
 #endif
