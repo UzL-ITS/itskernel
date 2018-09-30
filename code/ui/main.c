@@ -90,7 +90,7 @@ void main()
 	
 	// Create file system
 	printf_locked("Creating RAM file system...");
-	if(create_directory("/", "in") != RAMFS_ERR_OK || create_directory("/", "out") != RAMFS_ERR_OK)
+	if(create_directory("/", "in") != RAMFS_ERR_OK)
 		printf_locked("failed\n");
 	else
 		printf_locked("OK\n");
@@ -125,9 +125,10 @@ void main()
 			printf_locked("Supported commands:\n");
 			printf_locked("    lss                      List remote directory\n");
 			printf_locked("    ls                       List local file system tree\n");
-			printf_locked("    dl [filename]            Download file from server\n");
-			printf_locked("    prefix [filename] [n]    Show first n bytes of the given file\n");
-			printf_locked("    start [filename]         Run the given ELF64 file as a new process\n");
+			printf_locked("    dl [file name]            Download file from server to /in directory\n");
+			printf_locked("    ul [file path]            Upload file to server\n");
+			printf_locked("    prefix [file name] [n]    Show first n bytes of the given file\n");
+			printf_locked("    start [file name]         Run the given ELF64 file as a new process\n");
 			printf_locked("    sysinfo                  Print system information (e.g. CPU topology)\n");
 		}
 		else if(strcmp(args[0], "lss") == 0)
@@ -193,7 +194,53 @@ void main()
 				itslwip_disconnect(tcpHandle);
 				free(fileData);
 				free(filename);
-				free(args);
+			}
+		}
+		else if(strcmp(args[0], "ul") == 0)
+		{
+			// Check parameters
+			if(argCount < 2)
+				printf_locked("Missing argument.\n");
+			else
+			{
+				// Check whether file exists
+				int fileSize;
+				uint8_t *fileData;
+				fs_err_t err = get_file(args[1], (void **)&fileData, &fileSize);
+				if(err != RAMFS_ERR_OK)
+					printf_locked("Could not read file contents: %d\n", err);
+				else
+				{
+					// Split path to get file name
+					int filenameStartIndex;
+					int pathLength = strlen(args[1]);
+					for(filenameStartIndex = pathLength - 1; filenameStartIndex > 0; --filenameStartIndex)
+						if(args[1][filenameStartIndex - 1] == '/')
+							break;
+					int filenameLength = pathLength - filenameStartIndex;
+					char *filename = lineBuffer;
+					strncpy(filename, &args[1][filenameStartIndex], filenameLength);
+					filename[filenameLength] = '\n';
+					
+					// Connect to server and send command including file name
+					tcp_handle_t tcpHandle = itslwip_connect(serverIpAddress, 17571);
+					itslwip_send_string(tcpHandle, "sendout\n", 8);
+					itslwip_send_string(tcpHandle, lineBuffer, filenameLength + 1);
+					
+					// Send file size
+					itoa(fileSize, lineBuffer, 10);
+					int fileSizeLength = strlen(lineBuffer);
+					lineBuffer[fileSizeLength] = '\n';
+					lineBuffer[fileSizeLength + 1] = '\0';
+					itslwip_send_string(tcpHandle, lineBuffer, fileSizeLength + 1);
+					
+					// Send file data
+					itslwip_send(tcpHandle, fileData, fileSize);
+					
+					// Disconnect
+					itslwip_send_string(tcpHandle, "exit\n", 5);
+					itslwip_disconnect(tcpHandle);
+				}
 			}
 		}
 		else if(strcmp(args[0], "prefix") == 0)
@@ -207,7 +254,7 @@ void main()
 				int fileLength;
 				if(get_file(args[1], (void **)&fileData, &fileLength) == RAMFS_ERR_OK)
 				{
-					// Print first bytes
+					// Print first byte
 					int dumpLength = atoi(args[2]);
 					if(dumpLength > fileLength)
 						dumpLength = fileLength;
