@@ -55,6 +55,9 @@ typedef struct
 	
 	// The last entry of the receive queue.
 	receive_queue_entry_t *receiveQueueEnd;
+	
+	// The amount of bytes waiting for being sent.
+	int sendQueueSize;
 } tcp_conn_data_t;
 
 
@@ -159,8 +162,8 @@ static void handle_tcp_error(void *arg, err_t err)
 	tcp_conn_data_t *tcpConnData = (tcp_conn_data_t *)arg;
 	
 	// Set error code
-	//printf_locked("TCP error: %d\n", err);
-	tcpConnData->lastError = err;
+	printf_locked("TCP error: %d\n", err);
+	//tcpConnData->lastError = err;      <- causes page fault if connection was terminated already
 }
 
 static err_t handle_tcp_connected(void *arg, struct tcp_pcb *tcpObj, err_t err)
@@ -179,10 +182,13 @@ static err_t handle_tcp_connected(void *arg, struct tcp_pcb *tcpObj, err_t err)
 static err_t handle_tcp_sent(void *arg, struct tcp_pcb *tcpObj, u16_t len)
 {
 	// Get TCP connection data container
-	//tcp_conn_data_t *tcpConnData = (tcp_conn_data_t *)arg;
+	tcp_conn_data_t *tcpConnData = (tcp_conn_data_t *)arg;
 	
 	// Debug output
-	//printf_locked("TCP successfully sent %d bytes\n", len);
+	printf_locked("TCP successfully sent %d bytes\n", len);
+	
+	// Update queue size
+	tcpConnData->sendQueueSize -= len;
 	
 	return ERR_OK;
 }
@@ -266,6 +272,7 @@ tcp_handle_t itslwip_connect(const char *targetAddress, int targetPort)
 	mutex_init(&tcpConnData->receiveQueueMutex);
 	tcpConnData->receiveQueueStart = 0;
 	tcpConnData->receiveQueueEnd = 0;
+	tcpConnData->sendQueueSize = 0;
 	tcp_arg(tcpObj, (void *)tcpConnData);
 	
 	// Set error callback
@@ -336,8 +343,8 @@ void itslwip_send(tcp_handle_t tcpHandle, uint8_t *data, int dataLength)
 	// Ensure synchronized access to LWIP functions
 	mutex_acquire(&lwipMutex);
 	
-	// Pass send data in chunks to LWIP, as its length parameter allows only 2^16 bytes at once
-	const uint16_t sendChunkSize = 32768;
+	// Pass send data in chunks to LWIP
+	uint16_t sendChunkSize = tcp_sndbuf(tcpConnData->tcpObj);
 	int i = 0;
 	while(i < dataLength)
 	{
@@ -345,9 +352,16 @@ void itslwip_send(tcp_handle_t tcpHandle, uint8_t *data, int dataLength)
 		uint16_t nextChunkSize = ((dataLength - i) > sendChunkSize ? sendChunkSize : (dataLength - i));
 		
 		// Add chunk to send queue
-		/*err_t err =*/ tcp_write(tcpConnData->tcpObj, &data[i], nextChunkSize, 0);
-		//printf_locked("TCP write request returned error code %d\n", err);
+		err_t err;
+		while((err = tcp_write(tcpConnData->tcpObj, &data[i], nextChunkSize, 0)) != ERR_OK)
+		{
+			// Give TCP time to send data and receive ACK messages
+			mutex_release(&lwipMutex);
+			sys_yield();
+			mutex_acquire(&lwipMutex);
+		}
 		i += nextChunkSize;
+		tcpConnData->sendQueueSize += nextChunkSize;
 	}
 	
 	// Send remaining parts that LWIP buffered for later transmission
@@ -355,6 +369,10 @@ void itslwip_send(tcp_handle_t tcpHandle, uint8_t *data, int dataLength)
 	
 	// LWIP calls are done
 	mutex_release(&lwipMutex);
+	
+	// Wait until all data was sent
+	while(tcpConnData->sendQueueSize > 0)
+		sys_yield();
 }
 
 void itslwip_receive_data(tcp_handle_t tcpHandle, uint8_t *dataBuffer, int dataLength)

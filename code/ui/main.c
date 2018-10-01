@@ -218,21 +218,22 @@ void main()
 						if(args[1][filenameStartIndex - 1] == '/')
 							break;
 					int filenameLength = pathLength - filenameStartIndex;
-					char *filename = lineBuffer;
-					strncpy(filename, &args[1][filenameStartIndex], filenameLength);
-					filename[filenameLength] = '\n';
+					printf("File name is '%s' (length %d)\n", &args[1][filenameStartIndex], filenameLength);
+					char filenameBuffer[65]; // Maximum file name length and new line character
+					strncpy(filenameBuffer, &args[1][filenameStartIndex], filenameLength);
+					filenameBuffer[filenameLength] = '\n';
 					
 					// Connect to server and send command including file name
 					tcp_handle_t tcpHandle = itslwip_connect(serverIpAddress, 17571);
 					itslwip_send_string(tcpHandle, "sendout\n", 8);
-					itslwip_send_string(tcpHandle, lineBuffer, filenameLength + 1);
+					itslwip_send_string(tcpHandle, filenameBuffer, filenameLength + 1);
 					
 					// Send file size
-					itoa(fileSize, lineBuffer, 10);
-					int fileSizeLength = strlen(lineBuffer);
-					lineBuffer[fileSizeLength] = '\n';
-					lineBuffer[fileSizeLength + 1] = '\0';
-					itslwip_send_string(tcpHandle, lineBuffer, fileSizeLength + 1);
+					char fileSizeBuffer[11];
+					itoa(fileSize, fileSizeBuffer, 10);
+					int fileSizeLength = strlen(fileSizeBuffer);
+					fileSizeBuffer[fileSizeLength] = '\n';
+					itslwip_send_string(tcpHandle, fileSizeBuffer, fileSizeLength + 1);
 					
 					// Send file data
 					itslwip_send(tcpHandle, fileData, fileSize);
@@ -240,6 +241,7 @@ void main()
 					// Disconnect
 					itslwip_send_string(tcpHandle, "exit\n", 5);
 					itslwip_disconnect(tcpHandle);
+					free(fileData);
 				}
 			}
 		}

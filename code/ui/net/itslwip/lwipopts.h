@@ -44,6 +44,7 @@ See src/include/lwip/opt.h for a list of all available options.
 
 // TCP
 #define LWIP_TCP 1
+#define TCP_MSS 1460
 
 // Debug flags
 #define LWIP_DBG_MIN_LEVEL     LWIP_DBG_LEVEL_ALL
