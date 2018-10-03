@@ -34,10 +34,11 @@ void sys_info(int infoId, uint8_t *buffer)
 			{
 				// Copy topology data
 				const processor_topology_t *t = topology_get(p);
-				buffer[3 * p + 0] = t->packageId;
-				buffer[3 * p + 1] = t->coreId;
-				buffer[3 * p + 2] = t->smtId;
+				buffer32[3 * p + 0] = t->packageId;
+				buffer32[3 * p + 1] = t->coreId;
+				buffer32[3 * p + 2] = t->smtId;
 			}
+			break;
 		}
 	}
 }

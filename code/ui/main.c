@@ -324,7 +324,6 @@ void main()
 			
 			// Retrieve topology data
 			uint32_t *topologyBuffer = (uint32_t *)malloc(processorCount * 12);
-			topologyBuffer[0] = 10;
 			sys_info(1, (uint8_t *)topologyBuffer);
 			printf("CPU topology data:\n");
 			for(uint32_t p = 0; p < processorCount; ++p)
