@@ -25,7 +25,7 @@ void intr_dispatch(cpu_state_t *state)
 {
   /* acknowledge we received this interrupt if it came from the APIC */
   intr_t intr = state->id;
-  if (smp_mode == MODE_SMP)
+  if (smp_mode == MODE_SMP || smp_mode == MODE_SMP_STARTING)
   {
     if (intr > FAULT31 && intr != SPURIOUS)
       apic_ack();
@@ -88,7 +88,7 @@ static void _intr_unroute_intr(intr_t intr, intr_handler_t handler)
 
 bool _intr_route_irq(irq_tuple_t *tuple, intr_t intr)
 {
-  assert(smp_mode == MODE_SMP);
+  assert(smp_mode == MODE_SMP || smp_mode == MODE_SMP_STARTING);
 
   irq_t irq = tuple->irq;
 
@@ -120,7 +120,7 @@ bool _intr_route_irq(irq_tuple_t *tuple, intr_t intr)
 
 void _intr_unroute_irq(irq_tuple_t *tuple)
 {
-  assert(smp_mode == MODE_SMP);
+  assert(smp_mode == MODE_SMP || smp_mode == MODE_SMP_STARTING);
 
   irq_t irq = tuple->irq;
 
@@ -182,7 +182,7 @@ bool intr_route_irq(irq_tuple_t *tuple, intr_handler_t handler)
     if (tuple->irq < 16)
       pic_unmask(tuple->irq);
   }
-  else
+  else // MODE_SMP_STARTING and MODE_SMP
   {
     bool ok = _intr_route_irq(tuple, intr);
     if (!ok)
@@ -216,7 +216,7 @@ void intr_unroute_irq(irq_tuple_t *tuple, intr_handler_t handler)
     assert(tuple->irq < 16);
     pic_mask(tuple->irq);
   }
-  else
+  else // MODE_SMP_STARTING and MODE_SMP
   {
     _intr_unroute_irq(tuple);
   }

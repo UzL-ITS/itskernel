@@ -5,6 +5,9 @@
 #include <cpu/port.h>
 #include <panic/panic.h>
 #include <stdint.h>
+#include <stdbool.h>
+#include <lock/raw_spinlock.h>
+#include <trace/trace.h>
 
 /* the frequency of the PIT */
 #define PIT_FREQ 1193182
@@ -43,6 +46,9 @@
 #define RB_NULL 0x40
 #define RB_OUT  0x80
 
+static int mdelayCounter = 0;
+static raw_spinlock_t mdelayLock = RAW_SPINLOCK_UNLOCKED;
+
 void pit_timer_install_handler(intr_handler_t handler)
 {
 	/* set the interrupt handler, PIT channel 0 is connected to ISA IRQ0 */
@@ -59,55 +65,65 @@ void pit_monotonic(int ms)
   outb_p(PORT_CH0, (count >> 8) & 0xFF);
 }
 
-static void _pit_mdelay(int ms)
+static void _pit_mdelay_handler(cpu_state_t *state)
 {
-  /* disable the CH2 GATE pin while we program the PIT */
-  uint8_t ctrl = inb_p(PORT_CTRL);
-  ctrl &= ~CTRL_GATE;
-  outb_p(PORT_CTRL, ctrl);
-
-  /* send the command byte */
-  outb_p(PORT_CMD, CMD_BINARY | CMD_MODE0 | CMD_ACC_LOHI | CMD_CH2);
-
-  /* send the count word */
-  uint16_t count = PIT_FREQ * ms / 1000;
-  outb_p(PORT_CH2, count & 0xFF);
-  outb_p(PORT_CH2, (count >> 8) & 0xFF);
-
-  /* enable the CH2 GATE pin and ensure the speaker is disabled */
-  ctrl |= CTRL_GATE;
-  ctrl &= ~CTRL_SPEAKER;
-  outb_p(PORT_CTRL, ctrl);
-
-  /* busy-wait for the countdown to reach zero */
-  while ((inb_p(PORT_CTRL) & CTRL_OUT) == 0)
-  {
-    /* also check the count ourselves */
-    outb_p(PORT_CMD, CMD_ACC_LATCH | CMD_CH2);
-    uint8_t lo = inb_p(PORT_CH2);
-    uint8_t hi = inb_p(PORT_CH2);
-    uint16_t count = (hi << 8) | lo;
-    if (count == 0)
-      break;
-
-    /* don't burn the CPU! */
-    pause_once();
-  }
+	// Decrement counter
+	--mdelayCounter;
 }
 
 void pit_mdelay(int ms)
 {
-  /*
-   * as the PIT can only count down from 65535, delays of over ~50ms overflow
-   * the count register, so they are split up into multiple 50ms delays here
-   */
-  while (ms > 50)
-  {
-    _pit_mdelay(50);
-    ms -= 50;
-  }
-
-  /* delay for any remaining time */
-  if (ms > 0)
-    _pit_mdelay(ms);
+	// Prevent simultaneous access to the PIT
+	raw_spinlock_lock(&mdelayLock);
+	
+	// Install interrupt handler
+	if(!intr_route_irq(isa_irq(0), &_pit_mdelay_handler))
+		panic("Failed to route PIT interrupt");
+	
+	// Split delay into 5ms chunks, else the PIT count register might overflow
+	int num5MsChunks = ms / 5;
+	if(num5MsChunks > 0)
+	{
+		// Reset counter
+		mdelayCounter = num5MsChunks;
+		
+		// Program channel 0 to the given delay
+		uint16_t count = PIT_FREQ * 5 / 1000;
+		outb_p(PORT_CMD, CMD_BINARY | CMD_MODE2 | CMD_ACC_LOHI | CMD_CH0);
+		outb_p(PORT_CH0, count & 0xFF);
+		outb_p(PORT_CH0, (count >> 8) & 0xFF);
+		
+		// Wait
+		while(mdelayCounter > 0)
+			pause_once();
+		
+		// Disable PIT again
+		outb_p(PORT_CMD, CMD_BINARY | CMD_MODE1 | CMD_ACC_LOHI | CMD_CH0);
+	}
+	
+	// If necessary, wait remaining time
+	if(5 * num5MsChunks < ms)
+	{
+		// Reset counter
+		mdelayCounter = 1;
+		
+		// Program channel 0 to the given delay
+		uint16_t count = PIT_FREQ * (ms - 5 * num5MsChunks) / 1000;
+		outb_p(PORT_CMD, CMD_BINARY | CMD_MODE2 | CMD_ACC_LOHI | CMD_CH0);
+		outb_p(PORT_CH0, count & 0xFF);
+		outb_p(PORT_CH0, (count >> 8) & 0xFF);
+		
+		// Wait
+		while(mdelayCounter > 0)
+			pause_once();
+		
+		// Disable PIT again
+		outb_p(PORT_CMD, CMD_BINARY | CMD_MODE1 | CMD_ACC_LOHI | CMD_CH0);
+	}
+	
+	// Uninstall interrupt handler
+	intr_unroute_irq(isa_irq(0), &_pit_mdelay_handler);
+	
+	// Unlock PIT again
+	raw_spinlock_unlock(&mdelayLock);
 }

@@ -52,7 +52,7 @@ static void smp_boot(cpu_t *cpu)
 	/* figure out where the trampoline is */
 	extern int trampoline_start, trampoline_end, trampoline_stack;
 	size_t trampoline_len = (uintptr_t) &trampoline_end - (uintptr_t) &trampoline_start;
-
+	
 	/* map the trampoline into low memory */
 	if (!vmm_map_range(TRAMPOLINE_BASE, TRAMPOLINE_BASE, trampoline_len, VM_R | VM_W | VM_X))
 		panic("couldn't map SMP trampoline code");
@@ -68,18 +68,18 @@ static void smp_boot(cpu_t *cpu)
 
 	/* set the pointer to the cpu struct of the cpu we are booting */
 	booted_cpu = cpu;
-
+	
 	/* copy the trampoline into low memory */
 	memcpy((void *) TRAMPOLINE_BASE, &trampoline_start, trampoline_len);
-
+	
 	/* reset the ack flag */
 	ack_sipi = false;
 	barrier();
- 
+	
 	/* send INIT IPI */
 	apic_ipi_init(cpu->lapic_id);
 	pit_mdelay(10);
-
+	
 	/* send STARTUP IPI */
 	uint8_t vector = TRAMPOLINE_BASE / FRAME_SIZE;
 	apic_ipi_startup(cpu->lapic_id, vector);
@@ -152,7 +152,7 @@ void smp_ap_init(void)
 	ack_sipi = true;
 	barrier();
 
-	/* now start the real work! - set up the GDT, TSS, BSP and SYSCALL/RET */
+	/* now start the real work! - set up the GDT, TSS, IDT and SYSCALL/RET */
 	gdt_init();
 	tss_init();
 	tss_set_rsp0(cpu->idle_thread->rsp);
@@ -161,9 +161,6 @@ void smp_ap_init(void)
 
 	/* set up the local APIC on this CPU */
 	apic_init();
-
-	/* enable interrupts now the IDT and interrupt controllers are set up */
-	intr_unlock();
 
 	/* flush the TLB (as up until this point we won't have received TLB shootdowns) */
 	tlb_flush();

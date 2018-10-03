@@ -23,6 +23,7 @@
 #include <smp/cpu.h>
 #include <acpi/scan.h>
 #include <smp/init.h>
+#include <smp/mode.h>
 #include <proc/sched.h>
 #include <proc/syscall.h>
 #include <proc/module.h>
@@ -158,13 +159,18 @@ noreturn void init(uint32_t magic, multiboot_t *multiboot)
 		pic_init();
 		up_fallback = true;
 	}
+	else
+		smp_mode = MODE_SMP_STARTING;
 
 	/* set up the local APIC on the BSP if we are in SMP mode */
 	if(!up_fallback)
 		apic_init();
-
-	/* enable BSP interrupts now the IDT and interrupt controllers are set up */
-	intr_unlock();
+	else
+	{
+		/* enable BSP interrupts now the IDT and interrupt controllers are set up */
+		// In SMP mode these are enabled by apic_init()
+		intr_unlock();
+	}
 
 	/* route IPIs */
 	panic_init();

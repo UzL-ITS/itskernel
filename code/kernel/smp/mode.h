@@ -4,8 +4,9 @@
 
 typedef enum
 {
-  MODE_UP, /* uni-processor mode */
-  MODE_SMP /* symmetric multi-processor mode */
+  MODE_UP, // Uni-processor mode
+  MODE_SMP, // Active symmetric multi-processor mode
+  MODE_SMP_STARTING // Starting symmetric multi-processor mode
 } smp_mode_t;
 
 extern smp_mode_t smp_mode;

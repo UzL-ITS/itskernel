@@ -10,6 +10,8 @@
 #include <mm/common.h>
 #include <mm/mmio.h>
 #include <smp/cpu.h>
+#include <trace/trace.h>
+#include <lock/raw_spinlock.h>
 
 #define MSR_X2APIC_MMIO 0x800
 
@@ -108,8 +110,9 @@ static void apic_timer_calibrate(void)
   // Use the PIT timer to measure amount of ticks the APIC timer counts in 10ms
   cpu_t *cpu = cpu_get();
 
-  static spinlock_t apic_calibrate_lock = SPIN_UNLOCKED;
-  spin_lock(&apic_calibrate_lock);
+  // Use interrupt-free spinlock to avoid blocking the PIT delay interrupt
+  static raw_spinlock_t apic_calibrate_lock = RAW_SPINLOCK_UNLOCKED;
+  raw_spinlock_lock(&apic_calibrate_lock);
 
   apic_write(APIC_LVT_TIMER, LVT_MASKED);
   apic_write(APIC_TIMER_ICR, 0xFFFFFFFF);
@@ -119,7 +122,7 @@ static void apic_timer_calibrate(void)
 
   cpu->apic_ticks_per_ms = ticks * 16 / 10;
 
-  spin_unlock(&apic_calibrate_lock);
+  raw_spinlock_unlock(&apic_calibrate_lock);
 }
 
 void apic_timer_install_handler(intr_handler_t handler)
@@ -154,41 +157,44 @@ void x2apic_init(void)
 
 void apic_init(void)
 {
-  cpu_t *cpu = cpu_get();
+	cpu_t *cpu = cpu_get();
 
-  /* program the APIC base register on this CPU */
-  if (apic_mode == MODE_X2APIC)
-  {
-    uint64_t apic_base = (msr_read(MSR_APIC_BASE) & APIC_BASE_BSP) | APIC_BASE_ENABLED | APIC_BASE_X2_MODE;
-    msr_write(MSR_APIC_BASE, apic_base);
-  }
-  else
-  {
-    uint64_t apic_base = (msr_read(MSR_APIC_BASE) & APIC_BASE_BSP) | apic_phy_addr | APIC_BASE_ENABLED;
-    msr_write(MSR_APIC_BASE, apic_base);
-  }
+	/* program the APIC base register on this CPU */
+	if (apic_mode == MODE_X2APIC)
+	{
+		uint64_t apic_base = (msr_read(MSR_APIC_BASE) & APIC_BASE_BSP) | APIC_BASE_ENABLED | APIC_BASE_X2_MODE;
+		msr_write(MSR_APIC_BASE, apic_base);
+	}
+	else
+	{
+		uint64_t apic_base = (msr_read(MSR_APIC_BASE) & APIC_BASE_BSP) | apic_phy_addr | APIC_BASE_ENABLED;
+		msr_write(MSR_APIC_BASE, apic_base);
+	}
 
-  /* set the spurious interrupt vector */
-  apic_write(APIC_SVR, SVR_ENABLED | SPURIOUS);
+	/* set the spurious interrupt vector */
+	apic_write(APIC_SVR, SVR_ENABLED | SPURIOUS);
 
-  /* reset the error status */
-  apic_write(APIC_ESR, 0);
-  apic_write(APIC_ESR, 0);
+	/* reset the error status */
+	apic_write(APIC_ESR, 0);
+	apic_write(APIC_ESR, 0);
 
-  /* program LVT entries */
-  apic_write(APIC_LVT_LINT0, cpu->apic_lint_nmi[0] ? LVT_TYPE_NMI : LVT_MASKED);
-  apic_write(APIC_LVT_LINT1, cpu->apic_lint_nmi[1] ? LVT_TYPE_NMI : LVT_MASKED);
-  apic_write(APIC_LVT_TIMER, LVT_MASKED);
-  apic_write(APIC_LVT_ERROR, LVT_TYPE_FIXED | LVT_ERROR);
+	/* program LVT entries */
+	apic_write(APIC_LVT_LINT0, cpu->apic_lint_nmi[0] ? LVT_TYPE_NMI : LVT_MASKED);
+	apic_write(APIC_LVT_LINT1, cpu->apic_lint_nmi[1] ? LVT_TYPE_NMI : LVT_MASKED);
+	apic_write(APIC_LVT_TIMER, LVT_MASKED);
+	apic_write(APIC_LVT_ERROR, LVT_TYPE_FIXED | LVT_ERROR);
 
-  /* reset the priority so we accept all interrupts */
-  apic_write(APIC_TPR, 0);
+	/* reset the priority so we accept all interrupts */
+	apic_write(APIC_TPR, 0);
 
-  /* ack any outstanding interrupts */
-  apic_ack();
+	/* ack any outstanding interrupts */
+	apic_ack();
 
-  /* calibrate this APIC's timer */
-  apic_timer_calibrate();
+	/* enable interrupts (needed for timer calibration) */
+	intr_unlock();
+
+	/* calibrate this APIC's timer */
+	apic_timer_calibrate();
 }
 
 void apic_ack(void)
