@@ -48,7 +48,7 @@ namespace itskernel_server
                     // Get client network stream
                     Console.WriteLine($"Client {connClient.Client.RemoteEndPoint.ToString()} connected");
                     NetworkStream conn = connClient.GetStream();
-                    StreamReader connReader = new StreamReader(conn, Encoding.ASCII);
+                    BinaryReader connReader = new BinaryReader(conn);
                     StreamWriter connWriter = new StreamWriter(conn, Encoding.ASCII)
                     {
                         NewLine = "\n"
@@ -59,7 +59,7 @@ namespace itskernel_server
                     while(running && connClient.Connected)
                     {
                         // Receive next command
-                        string command = connReader.ReadLine();
+                        string command = ReadLine(connReader);
                         Console.WriteLine($"Received command \"{command}\".");
                         switch(command)
                         {
@@ -91,7 +91,7 @@ namespace itskernel_server
                             {
                                 // Receive file name
                                 Console.WriteLine($"    Receiving file name...");
-                                string fileName = connReader.ReadLine();
+                                string fileName = ReadLine(connReader);
 
                                 // Read entire file into memory
                                 Console.WriteLine($"    Reading file \"{ fileName }\"...");
@@ -117,12 +117,12 @@ namespace itskernel_server
                             {
                                 // Receive file name
                                 Console.WriteLine($"    Receiving file name...");
-                                string fileName = connReader.ReadLine();
+                                string fileName = ReadLine(connReader);
                                 Console.WriteLine($"    File name is \"{ fileName }\"");
 
                                 // Receive file length
                                 Console.WriteLine($"    Receiving file size...");
-                                int fileLength = int.Parse(connReader.ReadLine());
+                                int fileLength = int.Parse(ReadLine(connReader));
                                 Console.WriteLine($"    File size is \"{ fileLength }\"");
 
                                 // Receive file
@@ -130,7 +130,7 @@ namespace itskernel_server
                                 byte[] file = new byte[fileLength];
                                 int receivedBytes = 0;
                                 while(receivedBytes < fileLength)
-                                    receivedBytes += connReader.BaseStream.Read(file, receivedBytes, fileLength - receivedBytes);
+                                    receivedBytes += connReader.Read(file, receivedBytes, fileLength - receivedBytes);
 
                                 // Save file
                                 Console.WriteLine($"    Saving file...");
@@ -168,5 +168,20 @@ namespace itskernel_server
             else
                 return newValue;
         }
+
+        /// <summary>
+        /// Reads a line from the given stream reader.
+        /// </summary>
+        /// <param name="reader">The reader to read the line from.</param>
+        /// <returns></returns>
+        static string ReadLine(BinaryReader reader)
+        {
+            StringBuilder str = new StringBuilder();
+            char curr;
+            while((curr = (char)reader.ReadByte()) != '\n')
+                str.Append(curr);
+            return str.ToString();
+        }
+
     }
 }
