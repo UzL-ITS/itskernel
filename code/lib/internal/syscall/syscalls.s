@@ -44,20 +44,9 @@
 	ret
 %endmacro
 
-; TODO fix these (something is still broken in the syscall faux interrupt code)
-[global sys_yield]
-sys_yield:
-    ret
-[global sys_exit]
-sys_exit:
-    ret
-[global sys_exit_thread]
-sys_exit_thread:
-    ret
-	
 syscallwrapper sys_kputs, 0
-;syscallwrapper sys_exit, 1
-;syscallwrapper sys_yield, 2
+syscallwrapper sys_exit, 1
+syscallwrapper sys_yield, 2
 syscallwrapper sys_next_message_type, 3
 syscallwrapper sys_next_message, 4
 syscallwrapper sys_set_displayed_process, 5
@@ -73,7 +62,7 @@ syscallwrapper sys_vbe_clear, 14
 syscallwrapper sys_heap_alloc, 15
 syscallwrapper sys_heap_free, 16
 syscallwrapper sys_run_thread, 17
-;syscallwrapper sys_exit_thread, 18
+syscallwrapper sys_exit_thread, 18
 syscallwrapper sys_get_elapsed_milliseconds, 19
 syscallwrapper sys_get_network_mac_address, 20
 syscallwrapper sys_receive_network_packet, 21

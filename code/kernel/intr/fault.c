@@ -77,11 +77,11 @@ void fault_handle(cpu_state_t *state)
 				int dumpedStackEntries = 16;
 				uint64_t *rsp = (uint64_t *)state->rsp;
 				uint64_t *threadStackBase = (uint64_t *)((uint64_t)thread->stack + USER_STACK_SIZE);
-				trace_printf("User space page fault, thread stack at %016x, dumping first %d stack entries:\n", threadStackBase, dumpedStackEntries);
+				trace_printf("User space page fault, RSP = %016x (base %016x), dumping first %d stack entries:\n", rsp, threadStackBase, dumpedStackEntries);
 				for(int i = 0; i < dumpedStackEntries; ++i)
 				{
 					// Print next stack entry, if there is any
-					if(rsp > threadStackBase)
+					if(rsp >= threadStackBase)
 						break;
 					trace_printf("    %016x\n", *rsp);
 					++rsp;
@@ -108,7 +108,7 @@ void fault_handle(cpu_state_t *state)
 				for(int i = 0; i < dumpedStackEntries; ++i)
 				{
 					// Print next stack entry, if there is any
-					if(rsp > threadStackBase)
+					if(rsp >= threadStackBase)
 						break;
 					trace_printf("    %016x\n", *rsp);
 					++rsp;
