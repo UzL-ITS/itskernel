@@ -33,7 +33,7 @@ static uint16_t deviceIdsIntel8254x[] = { 0x1000, 0x1001, 0x1002, 0x1004, 0x1008
                                           0x100d, 0x100e, 0x100f, 0x1010, 0x1011, 0x1012, 0x1013, 0x1014,
 										  0x1015, 0x1016, 0x1017, 0x1018, 0x1019, 0x101a, 0x101d, 0x101e,
 										  0x1026, 0x1027, 0x1028 };
-static uint16_t deviceIdsI219[] = { 0x15d8, 0x10d3, 0x1570 };
+static uint16_t deviceIdsI219[] = { 0x15b8, 0x15d6, 0x15d8, 0x10d3, 0x1570 };
 
 // Returns whether the given device ID is a member of the given device list.
 static bool net_is_device(uint16_t deviceId, uint16_t *deviceIdList, int deviceIdListCount)
@@ -55,6 +55,7 @@ void net_init(pci_cfgspace_header_0_t *deviceCfgSpaceHeader)
 		bool found = false;
 		if(net_is_device(deviceId, deviceIdsIntel8254x, sizeof(deviceIdsIntel8254x) / sizeof(deviceIdsIntel8254x[0])))
 		{
+			trace_printf("Recognized e1000 network device, loading driver...\n");
 			netdev_init = &intel8254x_init;
 			netdev_get_mac_address = &intel8254x_get_mac_address;
 			netdev_send = &intel8254x_send;
@@ -64,6 +65,7 @@ void net_init(pci_cfgspace_header_0_t *deviceCfgSpaceHeader)
 		}
 		else if(net_is_device(deviceId, deviceIdsI219, sizeof(deviceIdsI219) / sizeof(deviceIdsI219[0])))
 		{
+			trace_printf("Recognized i219 network device, loading driver...\n");
 			netdev_init = &i219_init;
 			netdev_get_mac_address = &i219_get_mac_address;
 			netdev_send = &i219_send;

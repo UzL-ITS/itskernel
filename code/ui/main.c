@@ -20,7 +20,7 @@ Kernel UI process main file.
 /* VARIABLES */
 
 // Network configuration.
-/*/
+//
 static char serverIpAddress[] = "141.83.62.232";
 static char ipAddress[] = "141.83.62.44";
 static char subnetMask[] = "255.255.255.0";
@@ -70,6 +70,39 @@ static char **split_command_string(char *command, int *argumentCount)
 	}
 	return args;
 }
+
+
+extern void attackercode(uint64_t addr);
+static uint8_t attackerBuffer[0x2000];
+static void attacker(void *args)
+{
+	int core = *((int *)args);
+	set_thread_affinity(core);
+	
+	uint64_t addr = (((uint64_t)attackerBuffer & ~0xFFF) + 0x1110);
+	printf_locked("Attacker targets %016x\n", addr);
+	attackercode(addr);
+}
+
+extern uint64_t victimcode(uint64_t addr, int count);
+static uint8_t victimBuffer[0x2000];
+static void victim(void *args)
+{
+	int core = *((int *)args);
+	set_thread_affinity(core);
+	
+	uint64_t addr = (((uint64_t)victimBuffer & ~0xFFF) + 0x1110);
+	printf_locked("Victim targets %016x\n", addr);
+	
+	uint64_t sum = victimcode(addr, 100000) / 100000;
+	printf_locked("MemJam time: %d\n", (int)sum);
+}
+
+
+
+
+
+
 
 void main()
 {
@@ -337,6 +370,23 @@ void main()
 			
 			// Done
 			free(topologyBuffer);
+		}
+		else if(strcmp(args[0], "memjam") == 0)
+		{
+			if(argCount < 3)
+				printf_locked("Missing argument.\n");
+			else
+			{
+				int coreAttacker = atoi(args[1]);
+				int coreVictim = atoi(args[2]);
+				
+				printf_locked("Starting attacker on core %d...\n", coreAttacker);
+				run_thread(attacker, &coreAttacker);
+				for(int j = 0; j < 5; ++j)
+					for(int i = 0; i < 1000000000; ++i){__asm volatile("nop");}
+				printf_locked("Starting victim on core %d...\n", coreVictim);
+				run_thread(victim, &coreVictim);
+			}
 		}
 		else
 			printf_locked("Unknown command.\n");

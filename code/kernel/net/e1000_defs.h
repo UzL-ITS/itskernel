@@ -70,6 +70,9 @@ typedef enum
 	E1000_REG_RDTR = 0x02820, /* Rx Delay Timer - RW */
 	E1000_REG_RADV = 0x0282C, /* Rx Interrupt Absolute Delay Timer - RW */
 	
+	E1000_REG_RXCSUM = 0x05000, // Rx Checksum Control
+	E1000_REG_RFCTL = 0x05008, // Receive Filter Control
+	E1000_REG_MRQC = 0x05818, // Multiple Receive Control
 	E1000_REG_RAL = 0x05400, // Receive Address Low
 	E1000_REG_RAH = 0x05404, // Receive Address High
 	E1000_REG_RDBAL = 0x02800, // RX Descriptor Base Address Low

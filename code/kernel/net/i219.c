@@ -160,11 +160,7 @@ void i219_init(pci_cfgspace_header_0_t *deviceCfgSpaceHeader)
 		macAddress[5] = (macHigh >> 8) & 0xFF;
 	}
 	else
-	{
-		// We have to use EEPROM
-		panic("Implement 8254x EEPROM reading (register 0x14)");
-		// also write these MAC into RAL[0]/RAH[0]
-	}
+		panic("Could not read MAC address");
 	trace_printf("MAC address: %02x:%02x:%02x:%02x:%02x:%02x\n",
 		macAddress[0],
 		macAddress[1],
@@ -173,7 +169,19 @@ void i219_init(pci_cfgspace_header_0_t *deviceCfgSpaceHeader)
 		macAddress[4],
 		macAddress[5]
 	);
-	trace_printf("Device status: %08x\n", i219_read(E1000_REG_STATUS));
+	trace_printf("INIT Device status: %08x\n", i219_read(E1000_REG_STATUS));
+	trace_printf("     CTRL = %08x\n", i219_read(E1000_REG_CTRL));
+	trace_printf("     RCTL = %08x\n", i219_read(E1000_REG_RCTL));
+	trace_printf("     RDBAH = %08x\n", i219_read(E1000_REG_RDBAH));
+	trace_printf("     RDBAL = %08x\n", i219_read(E1000_REG_RDBAL));
+	trace_printf("     RDH = %08x\n", i219_read(E1000_REG_RDH));
+	trace_printf("     RDT = %08x\n", i219_read(E1000_REG_RDT));
+	trace_printf("     PBA = %08x\n", i219_read(E1000_REG_PBA));
+	trace_printf("     PBS = %08x\n", i219_read(E1000_REG_PBS));
+	trace_printf("     RFCTL = %08x\n", i219_read(E1000_REG_RFCTL));
+	trace_printf("     RXCSUM = %08x\n", i219_read(E1000_REG_RXCSUM));
+	trace_printf("     MRQC = %08x\n", i219_read(E1000_REG_MRQC));
+	trace_printf("     TCTL = %08x\n", i219_read(E1000_REG_TCTL));
 	
 	/* netdev.c :: e1000e_open */
 	
@@ -191,20 +199,20 @@ void i219_init(pci_cfgspace_header_0_t *deviceCfgSpaceHeader)
 	i219_read(E1000_REG_ICR);
 	
 	// Get hardware control from firmware
-	uint32_t ctrlExt = i219_read(E1000_REG_CTRL_EXT);
+	/*uint32_t ctrlExt = i219_read(E1000_REG_CTRL_EXT);
 	ctrlExt |= E1000_CTRL_EXT_DRV_LOAD;
-	i219_write(E1000_REG_CTRL_EXT, ctrlExt);
+	i219_write(E1000_REG_CTRL_EXT, ctrlExt);*/
 	
 	/* ---- ich8lan.c :: e1000_init_hw_ich8lan */
 	
 	// Clear multicast table array
-	for(int i = 0; i < 128; ++i)
+	for(int i = 0; i < 32; ++i)
 		i219_write(E1000_REG_MTA + 4 * i, 0x00000000);
 	
 	// Setup link
-	uint32_t ctrl = i219_read(E1000_REG_CTRL);
+	/*uint32_t ctrl = i219_read(E1000_REG_CTRL);
 	ctrl |= E1000_CTRL_SLU;
-	i219_write(E1000_REG_CTRL, ctrl);
+	i219_write(E1000_REG_CTRL, ctrl);*/
 	
 	// Interrupt throttling: Wait 1000 * 256ns = 256us between interrupts
 	// TODO adjust this for performance optimization
@@ -249,18 +257,6 @@ void i219_init(pci_cfgspace_header_0_t *deviceCfgSpaceHeader)
 	i219_write(E1000_REG_TDT, 0);
 	txTail = 0;
 	
-	// Enable transmitter
-	uint32_t tctl = i219_read(E1000_REG_TCTL);
-	tctl |= E1000_TCTL_EN; // EN (Transmitter Enable)
-	tctl |= E1000_TCTL_PSP; // PSP (Pad Short Packets)
-	/*tctl &= ~E1000_TCTL_CT;
-	tctl |= 0x000000F0; // 16 retries Collision Threshold*/
-	/*tctl &= ~E1000_TCTL_COLD;
-	tctl |= 0x0003F000; // 64-byte Collision Distance*/
-	tctl |= E1000_TCTL_RTLC; // RTLC (Re-transmit on Late Collision)
-	trace_printf("TCTL = %08x\n", tctl);
-	i219_write(E1000_REG_TCTL, tctl);
-	
 	/* ---- e1000_setup_rctl */
 	/* ---- e1000_configure_rx */
 	
@@ -293,19 +289,33 @@ void i219_init(pci_cfgspace_header_0_t *deviceCfgSpaceHeader)
 	i219_write(E1000_REG_RDT, RX_DESC_COUNT - 1);
 	rxTail = RX_DESC_COUNT - 1;
 	
+	// Disable TCP/IP checksum offloading
+	i219_write(E1000_REG_RXCSUM, 0x00000000);
+	
 	// Enable receiver
 	uint32_t rctl = i219_read(E1000_REG_RCTL);
 	rctl |= E1000_RCTL_EN; // EN (Receiver Enable)
-	rctl &= ~E1000_RCTL_SBP; // SBP (Store Pad Packets)
+	rctl |= E1000_RCTL_SBP; // SBP (Store Bad Packets)
 	//rctl |= 0x00000020; // LPE (Long Packet Reception Enable)   -> MTU is set to 1522, thus we don't use this feature
 	rctl |= E1000_RCTL_BAM; // BAM (Broadcast Accept Mode)
 	rctl &= ~E1000_RCTL_SZ_4096;
 	rctl |= E1000_RCTL_SZ_2048; // BSIZE = 2048 (Receive Buffer Size)
 	rctl &= ~E1000_RCTL_BSEX;
 	rctl |= E1000_RCTL_SECRC; // SECRC (Strip Ethernet CRC)
-	//rctl |= 0x00000018; // UPE+MPE (Promiscuous mode)           -> for testing only!
-	trace_printf("RCTL = %08x\n", rctl);
+	rctl |= E1000_RCTL_MPE; // Promiscuous mode   -> for testing only!
+	rctl |= E1000_RCTL_UPE; // Promiscuous mode   -> for testing only!
 	i219_write(E1000_REG_RCTL, rctl);
+	
+	// Enable transmitter
+	uint32_t tctl = i219_read(E1000_REG_TCTL);
+	tctl |= E1000_TCTL_EN; // EN (Transmitter Enable)
+	tctl |= E1000_TCTL_PSP; // PSP (Pad Short Packets)
+	/*tctl &= ~E1000_TCTL_CT;
+	tctl |= 0x000000F0; // 16 retries Collision Threshold*/
+	/*tctl &= ~E1000_TCTL_COLD;
+	tctl |= 0x0003F000; // 64-byte Collision Distance*/
+	tctl |= E1000_TCTL_RTLC; // RTLC (Re-transmit on Late Collision)
+	i219_write(E1000_REG_TCTL, tctl);
 	
 	// TODO extended status?
 	
@@ -330,7 +340,7 @@ void i219_init(pci_cfgspace_header_0_t *deviceCfgSpaceHeader)
 	/* -- e1000e_trigger_lsc */
 	
 	// Enable receive interrupt
-	i219_write(E1000_REG_IMS, E1000_IMS_RXT0 | E1000_IMS_TXDW | E1000_IMS_RXDMT0 | E1000_IMS_RXSEQ | E1000_IMS_LSC);
+	i219_write(E1000_REG_IMS, E1000_IMS_RXT0 | E1000_IMS_RXDMT0);
 	
 	// Return hardware control
 	// TODO The e1000e driver does not do this?!
@@ -338,7 +348,7 @@ void i219_init(pci_cfgspace_header_0_t *deviceCfgSpaceHeader)
 	ctrlExt &= ~E1000_CTRL_EXT_DRV_LOAD;
 	i219_write(E1000_REG_CTRL_EXT, ctrlExt);*/
 	
-	trace_printf("Device status: %08x\n", i219_read(E1000_REG_STATUS));
+	initialized = true;
 	trace_printf("Network driver initialized.\n");
 }
 
@@ -347,6 +357,126 @@ void i219_get_mac_address(uint8_t *macBuffer)
 	// Copy MAC address
 	for(int i = 0; i < 6; ++i)
 		macBuffer[i] = macAddress[i];
+}
+
+
+
+
+
+
+int debugRegs[] = {
+	0x04000,	/* CRC Error Count - R/clr */
+	0x04004,	/* Alignment Error Count - R/clr */
+	0x04008,	/* Symbol Error Count - R/clr */
+	0x0400C,	/* Receive Error Count - R/clr */
+	0x04010,	/* Missed Packet Count - R/clr */
+	0x04014,	/* Single Collision Count - R/clr */
+	
+	0x04018,	/* Excessive Collision Count - R/clr */
+	0x0401C,	/* Multiple Collision Count - R/clr */
+	0x04020,	/* Late Collision Count - R/clr */
+	0x04028,	/* Collision Count - R/clr */
+	0x04030,	/* Defer Count - R/clr */
+	0x04034,	/* Tx-No CRS - R/clr */
+	
+	0x04038,	/* Sequence Error Count - R/clr */
+	0x0403C,	/* Carrier Extension Error Count - R/clr */
+	0x04040,	/* Receive Length Error Count - R/clr */
+	0x04048,	/* XON Rx Count - R/clr */
+	0x0404C,	/* XON Tx Count - R/clr */
+	0x04050,	/* XOFF Rx Count - R/clr */
+	
+	0x04054,	/* XOFF Tx Count - R/clr */
+	0x04058,	/* Flow Control Rx Unsupported Count- R/clr */
+	0x0405C,	/* Packets Rx (64 bytes) - R/clr */
+	0x04060,	/* Packets Rx (65-127 bytes) - R/clr */
+	0x04064,	/* Packets Rx (128-255 bytes) - R/clr */
+	0x04068,	/* Packets Rx (255-511 bytes) - R/clr */
+	
+	0x0406C,	/* Packets Rx (512-1023 bytes) - R/clr */
+	0x04070,	/* Packets Rx (1024-1522 bytes) - R/clr */
+	0x04074,	/* Good Packets Rx Count - R/clr */
+	0x04078,	/* Broadcast Packets Rx Count - R/clr */
+	0x0407C,	/* Multicast Packets Rx Count - R/clr */
+	0x04080,	/* Good Packets Tx Count - R/clr */
+	
+	0x04088,	/* Good Octets Rx Count Low - R/clr */
+	0x0408C,	/* Good Octets Rx Count High - R/clr */
+	0x04090,	/* Good Octets Tx Count Low - R/clr */
+	0x04094,	/* Good Octets Tx Count High - R/clr */
+	0x040A0,	/* Rx No Buffers Count - R/clr */
+	0x040A4,	/* Rx Undersize Count - R/clr */
+	
+	0x040A8,	/* Rx Fragment Count - R/clr */
+	0x040AC,	/* Rx Oversize Count - R/clr */
+	0x040B0,	/* Rx Jabber Count - R/clr */
+	0x040B4,	/* Management Packets Rx Count - R/clr */
+	0x040B8,	/* Management Packets Dropped Count - R/clr */
+	0x040BC,	/* Management Packets Tx Count - R/clr */
+	
+	0x040C0,	/* Total Octets Rx Low - R/clr */
+	0x040C4,	/* Total Octets Rx High - R/clr */
+	0x040C8,	/* Total Octets Tx Low - R/clr */
+	0x040CC,	/* Total Octets Tx High - R/clr */
+	0x040D0,	/* Total Packets Rx - R/clr */
+	0x040D4,	/* Total Packets Tx - R/clr */
+	
+	0x040D8,	/* Packets Tx (64 bytes) - R/clr */
+	0x040DC,	/* Packets Tx (65-127 bytes) - R/clr */
+	0x040E0,	/* Packets Tx (128-255 bytes) - R/clr */
+	0x040E4,	/* Packets Tx (256-511 bytes) - R/clr */
+	0x040E8,	/* Packets Tx (512-1023 bytes) - R/clr */
+	0x040EC,	/* Packets Tx (1024-1522 Bytes) - R/clr */
+	
+	0x040F0,	/* Multicast Packets Tx Count - R/clr */
+	0x040F4,	/* Broadcast Packets Tx Count - R/clr */
+	0x040F8,	/* TCP Segmentation Context Tx - R/clr */
+	0x040FC,	/* TCP Segmentation Context Tx Fail - R/clr */
+	0x04100,	/* Interrupt Assertion Count */
+	0x04104,	/* Interrupt Cause Rx Pkt Timer Expire Count */
+	
+	0x04108,	/* Interrupt Cause Rx Abs Timer Expire Count */
+	0x0410C,	/* Interrupt Cause Tx Pkt Timer Expire Count */
+	0x04110,	/* Interrupt Cause Tx Abs Timer Expire Count */
+	0x04118,	/* Interrupt Cause Tx Queue Empty Count */
+	0x0411C,	/* Interrupt Cause Tx Queue Min Thresh Count */
+	0x04120,	/* Interrupt Cause Rx Desc Min Thresh Count */
+	
+	0x04124,	/* Interrupt Cause Receiver Overrun Count */
+};
+
+static void debug_regs()
+{
+	/*int cnt = sizeof(debugRegs) / sizeof(debugRegs[0]);
+	for(int i = 0; i < cnt / 6; ++i)
+	{
+		trace_printf("%08x %08x %08x %08x %08x %08x\n",
+			i219_read(debugRegs[6 * i + 0]),
+			i219_read(debugRegs[6 * i + 1]),
+			i219_read(debugRegs[6 * i + 2]),
+			i219_read(debugRegs[6 * i + 3]),
+			i219_read(debugRegs[6 * i + 4]),
+			i219_read(debugRegs[6 * i + 5])
+		);
+	}*/
+	
+	trace_printf("-- Device status: %08x\n", i219_read(E1000_REG_STATUS));
+	trace_printf("   CTRL = %08x\n", i219_read(E1000_REG_CTRL));
+	trace_printf("   RCTL = %08x\n", i219_read(E1000_REG_RCTL));
+	trace_printf("   RDBAH = %08x\n", i219_read(E1000_REG_RDBAH));
+	trace_printf("   RDBAL = %08x\n", i219_read(E1000_REG_RDBAL));
+	trace_printf("   RDH = %08x\n", i219_read(E1000_REG_RDH));
+	trace_printf("   RDT = %08x\n", i219_read(E1000_REG_RDT));
+	trace_printf("   RFCTL = %08x\n", i219_read(E1000_REG_RFCTL));
+	trace_printf("   RXCSUM = %08x\n", i219_read(E1000_REG_RXCSUM));
+	trace_printf("   MRQC = %08x\n", i219_read(E1000_REG_MRQC));
+	trace_printf("   TCTL = %08x\n", i219_read(E1000_REG_TCTL));
+	trace_printf("   TDBAH = %08x\n", i219_read(E1000_REG_TDBAH));
+	trace_printf("   TDBAL = %08x\n", i219_read(E1000_REG_TDBAL));
+	trace_printf("   TDH = %08x\n", i219_read(E1000_REG_TDH));
+	trace_printf("   TDT = %08x\n", i219_read(E1000_REG_TDT));
+	
+	trace_printf("\n");
 }
 
 void i219_send(uint8_t *packet, int packetLength)
@@ -383,7 +513,7 @@ void i219_send(uint8_t *packet, int packetLength)
 	
 	//trace_printf("Passing packet to device done.\n");
 	
-	trace_printf("RX err: %08x\n", i219_read(0x0400C));
+	debug_regs();
 }
 
 // Processes one received packet.
@@ -494,11 +624,13 @@ bool i219_handle_interrupt(cpu_state_t *state)
 	trace_printf("i219_handle_interrupt 2\n");
 	
 	// Handle set interrupts
-	trace_printf("Intel8254x interrupt! ICR: %08x\n", icr);
+	trace_printf("Intel i219 interrupt! ICR: %08x\n", icr);
 	if(icr & E1000_ICR_RXT0)
 	{
 		// Receive timer expired, handle received packets
 		i219_receive();
 	}
+	debug_regs();
+	while(1){}
 	return true;
 }
