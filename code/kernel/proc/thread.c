@@ -6,10 +6,11 @@
 #include <smp/cpu.h>
 #include <mm/seg.h>
 #include <stdlib/stdlib.h>
+#include <stdlib/string.h>
 
 #define STACK_ALIGN 32
 
-thread_t *thread_create(proc_t *proc, int flags)
+thread_t *thread_create(proc_t *proc, int flags, const char *name)
 {
   thread_t *thread = malloc(sizeof(*thread));
   if (!thread)
@@ -57,6 +58,9 @@ thread_t *thread_create(proc_t *proc, int flags)
     thread->ss = SLTR_USER_DATA | RPL3;
   }
 
+  // Copy name
+  strncpy(thread->name, name, sizeof(thread->name));
+	
   /* attach thread to parent process */
   proc_thread_add(proc, thread);
 

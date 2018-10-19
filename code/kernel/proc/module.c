@@ -17,7 +17,7 @@ static void module_load(multiboot_tag_t *tag)
 
   /* make a new process */
   trace_printf("MODULE proc_create()\n");
-  proc_t *proc = proc_create();
+  proc_t *proc = proc_create("module");
   if (!proc)
     panic("couldn't create process for module");
 
@@ -32,7 +32,7 @@ static void module_load(multiboot_tag_t *tag)
 
   /* make a new thread */
   trace_printf("MODULE thread_create()\n");
-  thread_t *thread = thread_create(proc, 0);
+  thread_t *thread = thread_create(proc, 0, "module");
   if (!thread)
     panic("couldn't create thread for module");
 

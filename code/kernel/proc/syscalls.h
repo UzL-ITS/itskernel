@@ -60,7 +60,7 @@ void *sys_heap_alloc(int size);
 void sys_heap_free(void *addr);
 
 // Starts a new thread and sets the instruction pointer to the given address.
-void sys_run_thread(uint64_t rip);
+void sys_run_thread(uint64_t rip, const char *name);
 
 // Exits the current thread.
 void sys_exit_thread(cpu_state_t *state);
@@ -104,5 +104,8 @@ void sys_dump_files(char *buffer, int bufferLength);
 
 // Returns the size of the string buffer that is needed to write the entire tree.
 int sys_dump_files_get_buffer_size();
+
+// Resolves the underlying physical address of the given virtual address.
+uint64_t sys_virt_to_phy(uint64_t addr);
 	
 #endif

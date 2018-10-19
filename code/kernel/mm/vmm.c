@@ -178,6 +178,39 @@ static int _vmm_size(uintptr_t virt)
 	return SIZE_4K;
 }
 
+// Returns the physical address the given virtual address maps to.
+static uint64_t _vmm_virt_to_phys(uintptr_t virt)
+{
+	// Get page table indices
+	page_index_t index;
+	addr_to_index(&index, virt);
+	
+	// Check PML4 entry
+	uint64_t pml4entry = index.pml4[index.pml4index];
+	if(!(pml4entry & PG_PRESENT))
+		return 0;
+
+	// Check PML3 entry
+	uint64_t pml3entry = index.pml3[index.pml3index];
+	if(!(pml3entry & PG_PRESENT))
+		return 0;
+	if(pml3entry & PG_BIG)
+		return (pml3entry & PG_ADDR_MASK) + (virt & (FRAME_SIZE_1G - 1));
+
+	// Check PML2 entry
+	uint64_t pml2entry = index.pml2[index.pml2index];
+	if(!(pml2entry & PG_PRESENT))
+		return 0;
+	if(pml2entry & PG_BIG)
+		return (pml2entry & PG_ADDR_MASK) + (virt & (FRAME_SIZE_2M - 1));
+
+	// Check PML1 entry
+	uint64_t pml1entry = index.pml1[index.pml1index];
+	if(!(pml1entry & PG_PRESENT))
+		return 0;
+	return (pml1entry & PG_ADDR_MASK) + (virt & (FRAME_SIZE - 1));
+}
+
 // Makes sure that the page table structure for the given address with the given size exists.
 static bool _vmm_touch(uintptr_t virt, int size)
 {
@@ -588,4 +621,12 @@ int vmm_size(uintptr_t virt)
   int size = _vmm_size(virt);
   vmm_unlock(virt);
   return size;
+}
+
+uint64_t vmm_virt_to_phys(uintptr_t virt)
+{
+	vmm_lock(virt);
+	uint64_t addr = _vmm_virt_to_phys(virt);
+	vmm_unlock(virt);
+	return addr;
 }

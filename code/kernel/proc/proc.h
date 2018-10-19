@@ -42,6 +42,9 @@ typedef struct proc
   // Message queue (FIFO, head is the oldest message).
   list_t messageQueue;
   
+  // Name of this process.
+  char name[32];
+  
   // Internal process list node.
   struct proc_node_t *processListNode;
 } proc_t;
@@ -66,7 +69,9 @@ typedef struct
 	msg_header_t *msg;
 } msg_node_t;
 
-proc_t *proc_create(void);
+// Maximum name length: 31 characters.
+proc_t *proc_create(const char *name);
+
 proc_t *proc_get(void);
 
 // Set state variables and load the processes virtual address space (the kernel is still mapped into the higher half).

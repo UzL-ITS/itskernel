@@ -121,7 +121,7 @@ void keyboard_init()
 	queueBufferSize = 0;
 	
 	// Run keyboard receiving thread
-	run_thread(&keyboard_thread, 0);
+	run_thread(&keyboard_thread, 0, "keyboard queue");
 }
 
 vkey_t receive_keypress(bool *shiftPressed)

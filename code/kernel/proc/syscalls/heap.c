@@ -2,6 +2,7 @@
 #include <proc/syscalls.h>
 #include <mm/seg.h>
 #include <mm/common.h>
+#include <mm/vmm.h>
 
 void *sys_heap_alloc(int size)
 {
@@ -14,4 +15,9 @@ void *sys_heap_alloc(int size)
 void sys_heap_free(void *addr)
 {
 	seg_free(addr);
+}
+
+uint64_t sys_virt_to_phy(uint64_t addr)
+{
+	return vmm_virt_to_phys(addr);
 }

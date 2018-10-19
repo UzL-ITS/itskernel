@@ -22,7 +22,7 @@ typedef void (*thread_func_t)(void *funcArgsPtr);
 void threading_init();
 
 // Runs the given function in a new thread.
-void run_thread(thread_func_t funcPtr, void *funcArgsPtr);
+void run_thread(thread_func_t funcPtr, void *funcArgsPtr, const char *name);
 
 // Sets the core where the current thread shall be executed on.
 void set_thread_affinity(int coreId);

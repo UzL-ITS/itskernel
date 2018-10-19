@@ -56,6 +56,9 @@ typedef struct
   
   // ID of the core this thread shall be run on.
   int coreId;
+  
+  // Name of this thread.
+  char name[32];
 
   /* register file for this thread */
   uint64_t regs[15];
@@ -63,7 +66,9 @@ typedef struct
   uint64_t cs, ss;
 } thread_t;
 
-thread_t *thread_create(struct proc *proc, int flags);
+// Maximum name length: 31 characters.
+thread_t *thread_create(struct proc *proc, int flags, const char *name);
+
 thread_t *thread_get(void);
 void thread_suspend(thread_t *thread);
 void thread_resume(thread_t *thread);

@@ -10,11 +10,11 @@
 #include <proc/elf64.h>
 #include <smp/cpu.h>
 
-void sys_run_thread(uint64_t rip)
+void sys_run_thread(uint64_t rip, const char *name)
 {
 	// Create thread
 	// TODO error checking
-	thread_t *thread = thread_create(proc_get(), 0);
+	thread_t *thread = thread_create(proc_get(), 0, name);
 	thread->rip = rip;
 	thread_resume(thread);
 }
@@ -39,7 +39,7 @@ bool sys_start_process(uint8_t *program, int programLength)
 	proc_t *currProc = proc_get();
 	
 	// Create new process and switch address space
-	proc_t *proc = proc_create();
+	proc_t *proc = proc_create("user_spawned");
 	if(!proc)
 		panic("Error spawning process during system call");
 	proc_switch(proc);
@@ -54,7 +54,7 @@ bool sys_start_process(uint8_t *program, int programLength)
 	}
 	
 	// Spawn thread
-	thread_t *thread = thread_create(proc, 0);
+	thread_t *thread = thread_create(proc, 0, "user_spawned main");
 	thread->rip = elf->e_entry;
 	thread_resume(thread);
 	

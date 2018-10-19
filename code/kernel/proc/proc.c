@@ -12,6 +12,7 @@
 #include <lock/spinlock.h>
 #include <panic/panic.h>
 #include <trace/trace.h>
+#include <stdlib/string.h>
 
 // The currently displayed process.
 proc_t *processDisplayed = 0;
@@ -25,7 +26,7 @@ list_t processList = LIST_EMPTY;
 // Lock to ensure ordered access to the process list and the currently displayed process.
 static spinlock_t processListLock = SPIN_UNLOCKED;
 
-proc_t *proc_create(void)
+proc_t *proc_create(const char *name)
 {
 	// Allocate necessary objects
 	trace_printf("proc_create: malloc\n");
@@ -84,6 +85,9 @@ proc_t *proc_create(void)
 	}
 	spin_unlock(&processListLock);
 	proc->processListNode = procNode;
+	
+	// Copy name
+	strncpy(proc->name, name, sizeof(proc->name));
 	
 	// Process is up and running
 	proc->state = PROC_RUNNING;

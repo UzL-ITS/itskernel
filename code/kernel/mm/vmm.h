@@ -24,5 +24,6 @@ bool vmm_map_range(uintptr_t virt, uintptr_t phy, size_t len, vm_acc_t flags);
 void vmm_unmap_range(uintptr_t virt, size_t len);
 
 int vmm_size(uintptr_t virt);
+uint64_t vmm_virt_to_phys(uintptr_t virt);
 
 #endif
