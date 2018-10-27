@@ -270,3 +270,9 @@ void terminal_handle_navigation_key(vkey_t keyCode)
 		draw_scrollbar();
 	}
 }
+
+void terminal_draw(uint32_t x, uint32_t y, uint32_t width, uint32_t height)
+{
+	// Draw rectangle relative to current position
+	sys_vbe_rectangle(TERMINAL_PADDING + currentColumn * COLUMN_WIDTH + x, TERMINAL_PADDING + currentRow * ROW_HEIGHT + y, width, height);
+}
