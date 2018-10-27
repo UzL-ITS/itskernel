@@ -20,7 +20,6 @@ syscall_stub:
   ; TODO check if scheduler interrupts during syscalls can break things
   ;      currently we just increase the intr_mask_count such that interrupts aren't accidentally re-enabled during syscall handling
   ;sti
-  inc qword [gs:8]
 
   ; preserve RCX and R11, these are used by SYSCALL/SYSRET
   push rcx
@@ -45,11 +44,19 @@ syscall_stub:
   mov rax, SYSCALL_FAST
   test r11, rax
   jz .faux_intr
+  
+  ; Decrease mask count such that interrupts aren't accidentally re-enabled
+  ; Faux interrupts increase the mask count themselves!
+  inc qword [gs:8]
 
   ; call the syscall function in the kernel directly
   mov rcx, r10 ; syscall ABI uses R10 instead of RCX, fix that for normal ABI
   mov rbp, 0   ; terminate stack traces here
   call r11
+  
+  ; Restore mask count
+  ; Faux interrupts decrease the mask count themselves!
+  dec qword [gs:8]
 
 .invalid_syscall:
   ; TODO: we probably want some sort of error upon an invalid syscall
@@ -65,7 +72,6 @@ syscall_stub:
 
   ; mask interrupts again, for the same race condition reasons
   ;cli
-  dec qword [gs:8]
 
   ; switch back to the user stack
   mov r12, [gs:16]   ; find current thread_t
@@ -139,8 +145,8 @@ syscall_stub:
   push rbx
   push rax
 
-  ; increment mask count (we cleared IF above)
-  ;inc qword [gs:8]
+  ; increment mask count
+  inc qword [gs:8]
 
   ; call the system call routine
   mov rdi, rsp ; first argument points to the processor state
@@ -148,15 +154,15 @@ syscall_stub:
   call r11
 
   ; decrement mask count
-  ;dec qword [gs:8]
+  dec qword [gs:8]
 
   ; check if we are switching from supervisor to user mode
-  ;mov rax, [rsp + 152]
-  ;and rax, 0x3000
-  ;jz .supervisor_exit
+  mov rax, [rsp + 152]
+  and rax, 0x3000      ; Ring 3 = 0x3***, Ring 0 = 0x0***
+  jz .supervisor_exit
 
   ; switch back to the user's GS base if we are going from supervisor to user mode
-  ;swapgs
+  swapgs
 
 .supervisor_exit:
   ; restore the register file
@@ -180,10 +186,17 @@ syscall_stub:
   add rsp, 16
 
   ; return
-  iretq ; This jumps to .faux_intr_exit, the IF flag will stay cleared (it is not set in the pushed RFLAGS)
+  ; If the current thread did not change:
+  ;    This jumps to .faux_intr_exit, the IF flag will stay cleared (it is not set in the pushed RFLAGS)
+  ; If the current thread did change:
+  ;    This continues execution either
+  ;    - directly (if the thread was interrupted)
+  ;    - in .faux_intr_exit (if the thread suspended itself using a syscall)
+  iretq 
 
 .faux_intr_exit:
   ; re-enable interrupts (the SYSCALL exit routine expects it), and then dive
   ; back into the SYSCALL exit routine
   ;sti
+  swapgs
   jmp .post_syscall

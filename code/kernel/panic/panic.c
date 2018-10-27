@@ -47,6 +47,9 @@ noreturn void vpanic(const char *message, va_list args)
 
 noreturn void vspanic(const char *message, cpu_state_t *state, va_list args)
 {
+	// Switch VBE context to ensure that the error message is visible
+	vbe_show_context(0);
+	
 	if(smp_mode == MODE_SMP)
 		apic_ipi_all_exc_self(IPI_PANIC);
 
@@ -77,9 +80,6 @@ noreturn void vspanic(const char *message, cpu_state_t *state, va_list args)
 
 	trace_puts(" Stack Trace:\n");
 	stacktrace_emit();
-	
-	// Switch VBE context to ensure that the error message is visible
-	vbe_show_context(0);
 
 	intr_disable();
 	halt_forever();
