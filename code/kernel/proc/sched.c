@@ -108,7 +108,7 @@ void sched_tick(cpu_state_t *state)
 	//spin_unlock(&thread_queue_lock);
 
 	/* if there is no new thread, switch to the idle thread */
-	if(!nextThread)
+	if(!nextThreadNode)
 		nextThread = cpu->idle_thread;
 
 	/* check if we're actually switching threads */
