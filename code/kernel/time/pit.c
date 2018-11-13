@@ -68,8 +68,14 @@ void pit_monotonic(int ms)
 static void _pit_mdelay_handler(cpu_state_t *state)
 {
 	// Decrement counter
+	//trace_printf("#");
 	--mdelayCounter;
 }
+
+// TODO workaround for QEMU receiving an unhandled interrupt after a few usages of this function
+// Usually the handler should be installed and then uninstalled again after timer completion
+// Maybe a race condition due to QEMUs emulation, if an PIT interrupt is pending but not yet communicated?
+static intr_handler_t mdelayHandler = 0;
 
 void pit_mdelay(int ms)
 {
@@ -77,8 +83,12 @@ void pit_mdelay(int ms)
 	raw_spinlock_lock(&mdelayLock);
 	
 	// Install interrupt handler
-	if(!intr_route_irq(isa_irq(0), &_pit_mdelay_handler))
-		panic("Failed to route PIT interrupt");
+	if(mdelayHandler == 0)
+	{
+		mdelayHandler = &_pit_mdelay_handler;
+		if(!intr_route_irq(isa_irq(0), &_pit_mdelay_handler))
+			panic("Failed to route PIT interrupt");
+	}
 	
 	// Split delay into 5ms chunks, else the PIT count register might overflow
 	int num5MsChunks = ms / 5;
@@ -120,10 +130,12 @@ void pit_mdelay(int ms)
 		// Disable PIT again
 		outb_p(PORT_CMD, CMD_BINARY | CMD_MODE1 | CMD_ACC_LOHI | CMD_CH0);
 	}
-	
+
 	// Uninstall interrupt handler
-	intr_unroute_irq(isa_irq(0), &_pit_mdelay_handler);
+	//intr_unroute_irq(isa_irq(0), &_pit_mdelay_handler);
 	
 	// Unlock PIT again
 	raw_spinlock_unlock(&mdelayLock);
+	
+	//trace_printf("pit_mdelay end\n");
 }

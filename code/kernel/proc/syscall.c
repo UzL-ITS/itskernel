@@ -51,6 +51,7 @@ uintptr_t syscall_table[] =
 	/* 30 */ (uintptr_t)&sys_dump_files,
 	/* 31 */ (uintptr_t)&sys_dump_files_get_buffer_size,
 	/* 32 */ (uintptr_t)&sys_virt_to_phy,
+	/* 33 */ (uintptr_t)&sys_reset,
 };
 uint64_t syscall_table_size = sizeof(syscall_table) / sizeof(*syscall_table);
 

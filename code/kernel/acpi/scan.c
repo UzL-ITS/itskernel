@@ -5,6 +5,7 @@
 #include <acpi/xsdt.h>
 #include <acpi/madt.h>
 #include <acpi/mcfg.h>
+#include <acpi/fadt.h>
 #include <mm/mmio.h>
 #include <init/cmdline.h>
 #include <panic/panic.h>
@@ -34,21 +35,21 @@ static void acpi_scan_table(uintptr_t addr)
 	acpi_header_t *table = acpi_map(addr); 
 	if(!table)
 		panic("couldn't map table");
-
+	
+	// Get readable version of table name
+	char sig[5];
+	sig[0] = table->signature & 0xFF;
+	sig[1] = (table->signature >> 8) & 0xFF;
+	sig[2] = (table->signature >> 16) & 0xFF;
+	sig[3] = (table->signature >> 24) & 0xFF;
+	sig[4] = 0;
+	
 	/* check to see if the table has a valid checksum */
 	if(!acpi_table_valid(table))
-	{
-		char sig[5];
-		sig[0] = table->signature & 0xFF;
-		sig[1] = (table->signature >> 8) & 0xFF;
-		sig[2] = (table->signature >> 16) & 0xFF;
-		sig[3] = (table->signature >> 24) & 0xFF;
-		sig[4] = 0;
-
 		panic("invalid checksum in %s", sig);
-	}
 
 	// Scan tables depending on signature
+	//trace_printf("Found ACPI table with signature %s\n", sig);
 	switch(table->signature)
 	{
 		case MADT_SIGNATURE:
@@ -56,6 +57,9 @@ static void acpi_scan_table(uintptr_t addr)
 			break;
 		case MCFG_SIGNATURE:
 			mcfg_scan((mcfg_t *)table);
+			break;
+		case FADT_SIGNATURE:
+			fadt_scan((fadt_t *)table);
 			break;
 			
 		default:
