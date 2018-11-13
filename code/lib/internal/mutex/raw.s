@@ -34,7 +34,7 @@ raw_mutex_acquire:
 	; Acquiring failed, reset value
 	lock inc byte [rdi]
 	
-	; This thread is blocked, ask scheduler to run another thread first (might the one we are waiting for)
+	; This thread is blocked, ask scheduler to run another thread first (might be the one we are waiting for)
 	call sys_yield
 	
 	; Try again

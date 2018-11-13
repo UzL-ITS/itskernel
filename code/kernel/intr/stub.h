@@ -68,4 +68,6 @@ void lvt_timer(void);
 void lvt_error(void);
 void spurious(void);
 
+void pci_msi_int0(void);
+
 #endif

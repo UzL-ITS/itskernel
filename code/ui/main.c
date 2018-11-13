@@ -15,21 +15,27 @@ Kernel UI process main file.
 #include <string.h>
 #include <stdint.h>
 #include "net/itslwip/itslwip.h"
+#include <internal/terminal/terminal.h>
 
 
 /* VARIABLES */
 
 // Network configuration.
-//
+/*
 static char serverIpAddress[] = "141.83.62.232";
 static char ipAddress[] = "141.83.62.44";
 static char subnetMask[] = "255.255.255.0";
 static char gatewayAddress[] = "141.83.62.1";
-/*/
-static char serverIpAddress[] = "192.168.21.1";
+/*
+static char serverIpAddress[] = "192.168.21.1"; // VMware
 static char ipAddress[] = "192.168.21.10";
 static char subnetMask[] = "255.255.255.0";
 static char gatewayAddress[] = "192.168.21.1";
+/*/
+static char serverIpAddress[] = "192.168.20.1"; // VirtualBox
+static char ipAddress[] = "192.168.20.10";
+static char subnetMask[] = "255.255.255.0";
+static char gatewayAddress[] = "192.168.20.1";
 /**/
 
 /* FUNCTIONS */
@@ -72,6 +78,7 @@ static char **split_command_string(char *command, int *argumentCount)
 }
 
 
+/**** MEMJAM *****/
 extern void attackercode(uint64_t addr);
 static uint8_t attackerBuffer[0x2000];
 static void attacker(void *args)
@@ -104,6 +111,67 @@ static void victim(void *args)
 
 
 
+
+/***** STFWD *******/
+
+
+extern uint64_t measure(uint8_t *testBuffer);
+
+#define ROUNDS 10000
+#define PAGE_COUNT 2048
+#define PAGE_SIZE 4096
+#define WINDOW 32
+
+void test_func(void *args)
+{
+	set_thread_affinity(*((int *)args));
+	
+	// TODO alloc contiguous
+	
+	printf_locked("malloc 1...\n");
+	uint8_t *testBuffer = (uint8_t *)malloc(PAGE_COUNT * PAGE_SIZE);
+	memset(testBuffer, 0, PAGE_COUNT * PAGE_SIZE);
+	for(int p = 0; p < PAGE_COUNT / 8; ++p)
+	{
+		printf_locked("%4d    ", 8 * p);
+		for(int i = 0; i < 8; ++i)
+			printf_locked("%012x ", sys_virt_to_phy((uint64_t)&testBuffer[(8 * p + i) * PAGE_SIZE]));
+		printf_locked("\n");
+	}
+	
+	printf_locked("malloc 2...\n");
+	uint16_t *measurementBuffer = (uint16_t *)malloc(PAGE_COUNT * sizeof(uint16_t));
+	memset(measurementBuffer, 0, PAGE_COUNT * sizeof(uint16_t));
+	
+	printf_locked("measure...\n");
+	for(int p = WINDOW; p < PAGE_COUNT; ++p)
+	{
+		uint64_t total = 0;
+		
+		for(int r = 0; r < ROUNDS; ++r)		
+		{
+			// Stores
+			for(int i = p - WINDOW; i <= p; ++i)
+				testBuffer[i * PAGE_SIZE] = 0;
+			
+			// Measuring load
+			total += measure(testBuffer);
+		}
+		
+		measurementBuffer[p] = (uint16_t)(total / ROUNDS);
+	}
+	
+	terminal_draw(20, 20, 20, 20);
+
+	for(int p = 0; p < PAGE_COUNT; ++p)
+		if(measurementBuffer[p] > 250)
+			printf_locked("%4d    %p -> %p    %u\n", p,  &testBuffer[p * PAGE_SIZE], sys_virt_to_phy((uint64_t)&testBuffer[p * PAGE_SIZE]), measurementBuffer[p]);
+
+	printf_locked("free...\n");
+	free(testBuffer);
+	free(measurementBuffer);
+}
+
 void main()
 {
 	// Initialize library
@@ -131,7 +199,7 @@ void main()
 	// Start LWIP thread
 	printf_locked("Starting LWIP thread...\n");
 	char *addressData[] = { ipAddress, subnetMask, gatewayAddress };
-	run_thread(&itslwip_run, addressData);
+	run_thread(&itslwip_run, addressData, "lwip");
 	printf_locked("Thread started.\n");
 	
 	// Command loop
@@ -156,13 +224,14 @@ void main()
 		{
 			// Print help text
 			printf_locked("Supported commands:\n");
-			printf_locked("    lss                      List remote directory\n");
-			printf_locked("    ls                       List local file system tree\n");
+			printf_locked("    lss                       List remote directory\n");
+			printf_locked("    ls                        List local file system tree\n");
 			printf_locked("    dl [file name]            Download file from server to /in directory\n");
 			printf_locked("    ul [file path]            Upload file to server\n");
 			printf_locked("    prefix [file name] [n]    Show first n bytes of the given file\n");
 			printf_locked("    start [file name]         Run the given ELF64 file as a new process\n");
-			printf_locked("    sysinfo                  Print system information (e.g. CPU topology)\n");
+			printf_locked("    sysinfo                   Print system information (e.g. CPU topology)\n");
+			printf_locked("    reboot                    Reset the CPU\n");
 		}
 		else if(strcmp(args[0], "lss") == 0)
 		{
@@ -323,7 +392,7 @@ void main()
 					printf_locked("Program file not found.\n");
 			}
 		}
-		else if(strcmp(args[0], "test") == 0)
+		else if(strcmp(args[0], "arp") == 0)
 		{
 			uint8_t mac[6];
 			sys_get_network_mac_address(mac);
@@ -371,22 +440,55 @@ void main()
 			// Done
 			free(topologyBuffer);
 		}
-		else if(strcmp(args[0], "memjam") == 0)
+		else if(strcmp(args[0], "reboot") == 0)
 		{
-			if(argCount < 3)
+			// Reboot
+			printf_locked("Initiating reboot...\n");
+			sys_reset();
+		}
+		else if(strcmp(args[0], "test") == 0)
+		{
+			if(argCount < 2)
 				printf_locked("Missing argument.\n");
 			else
 			{
-				int coreAttacker = atoi(args[1]);
-				int coreVictim = atoi(args[2]);
-				
-				printf_locked("Starting attacker on core %d...\n", coreAttacker);
-				run_thread(attacker, &coreAttacker);
-				for(int j = 0; j < 5; ++j)
-					for(int i = 0; i < 1000000000; ++i){__asm volatile("nop");}
-				printf_locked("Starting victim on core %d...\n", coreVictim);
-				run_thread(victim, &coreVictim);
+				int core = atoi(args[1]);
+				printf_locked("Starting measurement on core %d...\n", core);
+				run_thread(test_func, &core, "measure");
 			}
+		}
+		else if(strcmp(args[0], "memjam") == 0)
+		{
+			if(argCount < 4)
+				printf_locked("Missing argument(s). Usage [attacker core] [victim#1 core] [victim#2 core]\n");
+			else
+			{
+				int coreAttacker = atoi(args[1]);
+				int coreVictim1 = atoi(args[2]);
+				int coreVictim2 = atoi(args[3]);
+				printf_locked("Starting attacker on core %d...\n", coreAttacker);
+				run_thread(attacker, &coreAttacker, "memjamattack");
+				
+				for(int i = 0; i < 1000000000; ++i)
+					__asm ("nop");
+				
+				printf_locked("Starting victim on core %d...\n", coreVictim1);
+				run_thread(victim, &coreVictim1, "memjamvictim1");
+				
+				for(int i = 0; i < 1000000000; ++i)
+					__asm ("nop");
+				
+				printf_locked("Starting victim on core %d...\n", coreVictim2);
+				run_thread(victim, &coreVictim2, "memjamvictim2");
+			}
+		}
+		else if(strcmp(args[0], "scramble") == 0)
+		{
+			printf_locked("Allocate...\n");
+			sys_test();
+			
+			
+			printf_locked("Done\n");
 		}
 		else
 			printf_locked("Unknown command.\n");

@@ -30,6 +30,7 @@ void madt_scan(madt_t *madt)
 {
   /* the 32-bit address of the LAPIC */
   uint64_t lapic_addr = madt->lapic_addr;
+  trace_printf("MADT LADDR\t   addr=0x%08x\n", lapic_addr);
 
   /* a flag indicating if the BSP has been found in the table yet */
   bool bsp = true;
@@ -68,7 +69,7 @@ void madt_scan(madt_t *madt)
       case MADT_TYPE_LAPIC_ADDR:
         /* override the LAPIC address with a 64-bit one */
         lapic_addr = entry->lapic_addr.addr;
-		trace_printf("MADT LADDR\t   addr=0x%016x\n", lapic_addr);
+		trace_printf("MADT LADDR64\t   addr=0x%016x\n", lapic_addr);
         break;
 
       case MADT_TYPE_LAPIC:
@@ -153,8 +154,12 @@ void madt_scan(madt_t *madt)
           //uint16_t flags = entry->lnmi.flags;
 
           if (lintn != 0 && lintn != 1)
-            panic("LINTn can only be set to 0 or 1");
-
+		  {
+			// TODO ignore for now
+            //panic("LINTn can only be set to 0 or 1");
+			continue;
+		  }
+		  
           if (id == 0xFF)
           {
             /* magic value which indicates NMI is connected to all APICs */

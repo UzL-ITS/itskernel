@@ -1,0 +1,6 @@
+QEMU Build Environment
+
+See https://qemu.weilnetz.de/doc/BUILD.txt
+
+Build command:
+../configure --cross-prefix=x86_64-w64-mingw32- --disable-guest-agent-msi --enable-trace-backends=log --disable-werror --target-list=x86_64-softmmu

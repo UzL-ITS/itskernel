@@ -36,8 +36,9 @@ namespace itskernel_server
                 Directory.CreateDirectory(outDirectory);
 
             // Start server
-           // string serverIp = RequestUserConfig("server IP", "192.168.21.1");
-            string serverIp = RequestUserConfig("server IP", "141.83.62.232");
+            string serverIp = RequestUserConfig("server IP", "192.168.20.1"); // VirtualBox
+            //string serverIp = RequestUserConfig("server IP", "192.168.21.1"); // VMware
+            //string serverIp = RequestUserConfig("server IP", "141.83.62.232");
             TcpListener server = new TcpListener(System.Net.IPAddress.Parse(serverIp), SERVER_PORT);
             server.Start();
             while(true)

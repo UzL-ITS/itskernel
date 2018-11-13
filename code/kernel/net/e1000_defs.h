@@ -85,6 +85,8 @@ typedef enum
 	E1000_REG_TDLEN = 0x03808, // TX Descriptor Length
 	E1000_REG_TDH = 0x03810, // TX Descriptor Head
 	E1000_REG_TDT = 0x03818, // TX Descriptor Tail
+	E1000_REG_TARC0 = 0x3840, // Transmit Arbitration Count
+	E1000_REG_TARC1 = E1000_REG_TARC0 + 0x100, // Transmit Arbitration Count
 	
 	E1000_REG_MTA = 0x05200
 } e1000_register_t;

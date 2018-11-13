@@ -203,11 +203,43 @@ void pci_init()
 		{
 			// Debug
 			trace_printf("Ethernet controller found: VendorID %04x, DeviceID %04x\n", cur->deviceCfgSpaceHeaderCommon->vendorId, cur->deviceCfgSpaceHeaderCommon->deviceId);
-			
 			pci_cfgspace_header_0_t *deviceCfgSpaceHeader = (pci_cfgspace_header_0_t *)cur->deviceCfgSpaceHeaderCommon;
 			
+			// Initialize device
 			print_bar_info(deviceCfgSpaceHeader);
 			net_init(deviceCfgSpaceHeader);
+			
+			// Initialize MSI interrupts
+			uint8_t capPtr = deviceCfgSpaceHeader->capabilitiesPointer;
+			pci_cap_common_t *curCap = 0;
+			while(capPtr != 0x00)
+			{
+				curCap = (pci_cap_common_t *)((uint64_t)deviceCfgSpaceHeader + capPtr);
+				if(curCap->capId == 0x05)
+				{
+					trace_printf("Found PCIe MSI capability, enabling...\n");
+					msi_enable(curCap, PCI_MSI_INT0, _handle_pci_interrupt);
+					break;
+				}
+				else
+					capPtr = *((uint8_t *)((uint64_t)deviceCfgSpaceHeader + capPtr + 1));
+			}
+			
+			break;
 		}
 	}
+
+	// Route PCI interrupts INTA ... INTD
+	// TODO Detect IRQs with ACPI AML parsing
+	/*for(int i = 0; i < 4; ++i)
+	{
+		irq_tuple_t tuple;
+		tuple.irq = 16 + i;
+		tuple.active_polarity = POLARITY_LOW;
+		tuple.trigger = TRIGGER_LEVEL;
+		if(!intr_route_irq(&tuple, _handle_pci_interrupt))
+			trace_printf("Error: Could not install PCI interrupt INT%c handler.\n", (char)('A' + i));
+		else
+			trace_printf("PCI interrupt INT%c handler successfully installed.\n", (char)('A' + i));
+	}*/
 }

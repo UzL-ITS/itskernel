@@ -61,6 +61,15 @@ spurious:
   push 0xFF
   jmp intr_stub
 
+; PCI MSI entry code
+%macro pci_msi_int 2
+[global pci_msi_int%1]
+pci_msi_int%1:
+  push 0
+  push %2
+  jmp intr_stub
+%endmacro
+
 intr_stub:
   ; save the register file
   push r15
@@ -191,3 +200,5 @@ irq 20, 52
 irq 21, 53
 irq 22, 54
 irq 23, 55
+
+pci_msi_int 0, 112

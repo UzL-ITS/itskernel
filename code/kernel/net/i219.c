@@ -139,11 +139,11 @@ void i219_init(pci_cfgspace_header_0_t *deviceCfgSpaceHeader)
 	deviceBar0MemorySize = bar0Info.size;
 	deviceBar0Memory = (uint8_t *)mmio_map(bar0Info.baseAddress, bar0Info.size, VM_R | VM_W);
 	if(!deviceBar0Memory)
-		panic("Error: Could not map Intel i219 BAR0 MMIO.");
+		panic("Error: Could not map Intel e1000e BAR0 MMIO.");
 	
 	// Enable PCI bus mastering (else no PCI accesses possible)
 	uint32_t commandRegister = deviceCfgSpaceHeader->commonHeader.command;
-	commandRegister |= 0x04;
+	commandRegister |= 0x07; // Make sure memory/IO space are also enabled
 	deviceCfgSpaceHeader->commonHeader.command = commandRegister;
 	
 	// Read MAC address
@@ -161,6 +161,7 @@ void i219_init(pci_cfgspace_header_0_t *deviceCfgSpaceHeader)
 	}
 	else
 		panic("Could not read MAC address");
+	
 	trace_printf("MAC address: %02x:%02x:%02x:%02x:%02x:%02x\n",
 		macAddress[0],
 		macAddress[1],
@@ -186,9 +187,6 @@ void i219_init(pci_cfgspace_header_0_t *deviceCfgSpaceHeader)
 	/* netdev.c :: e1000e_open */
 	
 	/* -- netdev.c :: e1000e_reset */
-	
-	// TODO check PBA value (packet buffer allocation)?
-	// TODO flush descriptor queues, if they contain any descriptors (should not be necessary)?
 	
 	/* ---- ich8lan.c :: e1000_reset_hw_ich8lan */
 	
@@ -256,6 +254,14 @@ void i219_init(pci_cfgspace_header_0_t *deviceCfgSpaceHeader)
 	i219_write(E1000_REG_TDH, 0);
 	i219_write(E1000_REG_TDT, 0);
 	txTail = 0;
+	
+	// Use only the first transmission queue
+	uint32_t tarc0 = i219_read(E1000_REG_TARC0);
+	tarc0 |= 0x400; // Enable queue
+	i219_write(E1000_REG_TARC0, tarc0);
+	uint32_t tarc1 = i219_read(E1000_REG_TARC1);
+	tarc1 &= ~0x400; // Disable queue
+	i219_write(E1000_REG_TARC1, tarc1);
 	
 	/* ---- e1000_setup_rctl */
 	/* ---- e1000_configure_rx */
@@ -358,11 +364,6 @@ void i219_get_mac_address(uint8_t *macBuffer)
 	for(int i = 0; i < 6; ++i)
 		macBuffer[i] = macAddress[i];
 }
-
-
-
-
-
 
 int debugRegs[] = {
 	0x04000,	/* CRC Error Count - R/clr */
@@ -475,6 +476,9 @@ static void debug_regs()
 	trace_printf("   TDBAL = %08x\n", i219_read(E1000_REG_TDBAL));
 	trace_printf("   TDH = %08x\n", i219_read(E1000_REG_TDH));
 	trace_printf("   TDT = %08x\n", i219_read(E1000_REG_TDT));
+	trace_printf("   TARC0 = %08x\n", i219_read(E1000_REG_TARC0));
+	trace_printf("   TARC1 = %08x\n", i219_read(E1000_REG_TARC1));
+	trace_printf("   IMS = %08x\n", i219_read(E1000_REG_IMS));
 	
 	trace_printf("\n");
 }
@@ -615,13 +619,14 @@ bool i219_handle_interrupt(cpu_state_t *state)
 	// Ensure initialization is done
 	if(!initialized)
 		return false;
-	trace_printf("i219_handle_interrupt 1\n");
 	
 	// Read interrupt cause register
 	uint32_t icr = i219_read(E1000_REG_ICR);
 	if(!icr)
+	{
+		trace_printf("Interrupt not caused by i219\n", icr);
 		return false;
-	trace_printf("i219_handle_interrupt 2\n");
+	}
 	
 	// Handle set interrupts
 	trace_printf("Intel i219 interrupt! ICR: %08x\n", icr);
@@ -630,7 +635,7 @@ bool i219_handle_interrupt(cpu_state_t *state)
 		// Receive timer expired, handle received packets
 		i219_receive();
 	}
-	debug_regs();
-	while(1){}
+	else if(icr == 0x00000002) // TODO only for debugging - needed?
+		i219_write(E1000_REG_ICR, 0x00000002);
 	return true;
 }

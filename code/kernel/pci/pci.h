@@ -89,6 +89,17 @@ typedef struct
 	uint8_t maxLat;
 } __attribute__((__packed__)) pci_cfgspace_header_0_t;
 
+// Capability header.
+typedef struct
+{
+	// Capability ID.
+	uint8_t capId;
+	
+	// Next capability offset.
+	uint8_t nextCap;
+	
+} __attribute__((__packed__)) pci_cap_common_t;
+
 typedef struct
 {
 	// The BAR's base address.

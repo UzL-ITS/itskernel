@@ -103,6 +103,7 @@ void idt_bsp_init(void)
   idt_encode_descriptor(LVT_TIMER, &lvt_timer, IDT_PRESENT | IDT_INTERRUPT);
   idt_encode_descriptor(LVT_ERROR, &lvt_error, IDT_PRESENT | IDT_INTERRUPT);
   idt_encode_descriptor(SPURIOUS,  &spurious,  IDT_PRESENT | IDT_INTERRUPT);
+  idt_encode_descriptor(PCI_MSI_INT0,  &pci_msi_int0,  IDT_PRESENT | IDT_INTERRUPT);
 
   idtr.addr = (uint64_t) idt_descriptors;
   idtr.len = sizeof(idt_descriptors) - 1;

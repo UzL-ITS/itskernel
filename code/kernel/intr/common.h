@@ -98,4 +98,7 @@
 /* LAPIC spurious interrupt */
 #define SPURIOUS 0xFF /* in old processors bits 0-3 are hardwired to 1 */
 
+// PCI MSI interrupts
+#define PCI_MSI_INT0 0x70
+
 #endif

@@ -77,3 +77,4 @@ syscallwrapper sys_get_file_info, 29
 syscallwrapper sys_dump_files, 30
 syscallwrapper sys_dump_files_get_buffer_size, 31
 syscallwrapper sys_virt_to_phy, 32
+syscallwrapper sys_reset, 33
