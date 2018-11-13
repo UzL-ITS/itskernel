@@ -12,6 +12,7 @@ PCI driver.
 #include <intr/route.h>
 #include <cpu/state.h>
 #include <net/net.h>
+#include <intr/common.h>
 
 // Represents one discovered PCI device.
 typedef struct pci_device
@@ -180,20 +181,6 @@ void pci_get_bar_info(pci_cfgspace_header_0_t *deviceCfgSpaceHeader, int barInde
 void pci_init()
 {
 	trace_printf("PCI init...\n");
-
-	// Route PCI interrupts INTA ... INTD
-	// TODO Detect IRQs with ACPI AML parsing
-	for(int i = 0; i < 4; ++i)
-	{
-		irq_tuple_t tuple;
-		tuple.irq = 16 + i;
-		tuple.active_polarity = POLARITY_LOW;
-		tuple.trigger = TRIGGER_LEVEL;
-		if(!intr_route_irq(&tuple, _handle_pci_interrupt))
-			trace_printf("Error: Could not install PCI interrupt INT%c handler.\n", (char)('A' + i));
-		else
-			trace_printf("PCI interrupt INT%c handler successfully installed.\n", (char)('A' + i));
-	}
 	
 	// Find ethernet card
 	for(pci_device_t *cur = discoveredDevicesList; cur != 0; cur = cur->next)

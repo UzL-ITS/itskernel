@@ -184,6 +184,17 @@ void i219_init(pci_cfgspace_header_0_t *deviceCfgSpaceHeader)
 	trace_printf("     MRQC = %08x\n", i219_read(E1000_REG_MRQC));
 	trace_printf("     TCTL = %08x\n", i219_read(E1000_REG_TCTL));
 	
+	// TODO needed?
+	uint32_t status;
+	//do
+		status = i219_read(E1000_REG_STATUS);
+	//while(!(status & E1000_STATUS_LAN_INIT_DONE));
+	i219_write(E1000_REG_STATUS, status & (~E1000_STATUS_LAN_INIT_DONE));
+	//do
+		status = i219_read(E1000_REG_STATUS);
+	//while(!(status & E1000_STATUS_PHYRA));
+	i219_write(E1000_REG_STATUS, status & (~E1000_STATUS_PHYRA));
+	
 	/* netdev.c :: e1000e_open */
 	
 	/* -- netdev.c :: e1000e_reset */
