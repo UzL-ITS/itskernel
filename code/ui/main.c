@@ -21,7 +21,7 @@ Kernel UI process main file.
 /* VARIABLES */
 
 // Network configuration.
-/*
+//*
 static char serverIpAddress[] = "141.83.62.232";
 static char ipAddress[] = "141.83.62.44";
 static char subnetMask[] = "255.255.255.0";
@@ -31,7 +31,7 @@ static char serverIpAddress[] = "192.168.21.1"; // VMware
 static char ipAddress[] = "192.168.21.10";
 static char subnetMask[] = "255.255.255.0";
 static char gatewayAddress[] = "192.168.21.1";
-/*/
+/*
 static char serverIpAddress[] = "192.168.20.1"; // VirtualBox
 static char ipAddress[] = "192.168.20.10";
 static char subnetMask[] = "255.255.255.0";

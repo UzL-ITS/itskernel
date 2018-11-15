@@ -11,6 +11,7 @@
 #include <panic/panic.h>
 #include <stdlib/string.h>
 #include <stdbool.h>
+#include <io/keyboard.h>
 
 #define SCHED_TIMESLICE 10 /* 10ms = 100Hz */
 
@@ -28,6 +29,9 @@ static void sched_handle_apic_interrupt(cpu_state_t *state)
 	// Increment timer counter
 	cpu_t *cpu = cpu_get();
 	cpu->elapsedMsSinceStart += SCHED_TIMESLICE;
+	
+	// Keyboard workaround
+	keyboard_poll();
 	
 	// Process scheduler tick
 	sched_tick(state);

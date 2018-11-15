@@ -12,6 +12,11 @@ Keyboard driver.
 #include <stdbool.h>
 #include <proc/msg.h>
 #include <proc/proc.h>
+#include <cpu/pause.h>
+
+// PS/2 controller constants.
+#define PS2_DATA_PORT 0x60
+#define PS2_CONFIG_PORT 0x64
 
 
 // Currently pressed keys.
@@ -20,13 +25,18 @@ static bool pressedKeys[VKEY_MAX_VALUE + 1] = { false };
 // Code E0 in last interrupt?
 static bool receivedE0 = false;
 
-static void _handle_key_press(cpu_state_t *state)
+// Determines whether the polling workaround is active.
+static bool pollWorkaround = false;
+
+
+static void _handle_key_press(cpu_state_t *UNUSED_state)
 {
 	// Retrieve scan code
 	// TODO add support for extended scan codes (E0)
 	// TODO add support for modifiers -> add fields to messages
-	uint8_t scanCode = inb(0x60);
-	//trace_printf("Scan code 0x%02x\n", scanCode);
+	uint8_t scanCode = inb(PS2_DATA_PORT);
+	
+	trace_printf("Scan code 0x%02x\n", scanCode);
 	
 	// Check scan code type
 	vkey_t keyCode = VKEY_INVALID;
@@ -81,8 +91,66 @@ static void _handle_key_press(cpu_state_t *state)
 	pressedKeys[keyCode] = pressed;
 }
 
+static void _output_wait()
+{
+	// Wait for data available status bit
+	while(!(inb(PS2_CONFIG_PORT) & 0x01))
+		pause_once();
+}
+
+static void _input_wait()
+{
+	// Wait for ready status bit
+	while(!(inb(PS2_CONFIG_PORT) & 0x02))
+		pause_once();
+}
+
+void keyboard_poll()
+{
+	// Polling enabled?
+	if(!pollWorkaround)
+		return;
+	
+	// Call interrupt handler, while new data is available
+	while(inb(PS2_CONFIG_PORT) & 0x01)
+		_handle_key_press(0);
+}
+
+#include <time/pit.h>
 void keyboard_init()
 {
+	// Do self-test
+	outb(PS2_CONFIG_PORT, 0xAA);
+	_output_wait();
+	trace_printf("Keyboard self-test result: %02x\n", inb(PS2_DATA_PORT));
+	
+	// Discard pending output bytes
+	while(inb(PS2_CONFIG_PORT) & 0x01)
+		inb(PS2_DATA_PORT);
+	
+	// Read configuration byte
+	outb(PS2_CONFIG_PORT, 0x20);
+	_output_wait();
+	uint8_t configByte = inb(PS2_DATA_PORT);
+	trace_printf("Configuration byte: %02x\n", configByte);
+	
+	// TODO workaround: If the configuration is not immediately correct, do not enable interrupt at all and use polling instead
+	if(!(configByte & 0x03))
+	{
+		// Enable workaround
+		trace_printf("Enabling keyboard workaround...\n");
+		pollWorkaround = true;
+		
+		// Update configuration register
+		outb(PS2_CONFIG_PORT, 0x60);
+		_input_wait();
+		outb(PS2_DATA_PORT, 0x64); // Enable port 1, disable IRQs
+	}
+	
+	// Discard pending output bytes
+	while(inb(PS2_CONFIG_PORT) & 0x01)
+		inb(PS2_DATA_PORT);
+	
 	// Install interrupt
 	irq_tuple_t tuple;
 	tuple.irq = 1;
