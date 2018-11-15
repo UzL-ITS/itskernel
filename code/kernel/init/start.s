@@ -74,8 +74,10 @@ mb_hdr_start:
     dw MB_TAG_FRAMEBUFFER
     dw 0
 	dd (mb_tag_framebuffer_end - mb_tag_framebuffer_start)
-	dd 1024
-	dd 768
+	; TODO this is very firmware and screen specific and only intended for internal testing!
+	; A safe and well-tested resolution is 1024x768.
+	dd 2560
+	dd 1440
 	dd 32
 	align MB_ALIGN
   mb_tag_framebuffer_end:
