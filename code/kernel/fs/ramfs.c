@@ -210,7 +210,7 @@ ramfs_err_t ramfs_create_file(const char *path, const char *name, void *data, in
 		if(strcmp(f->name, name) == 0)
 		{
 			spin_unlock(&ramfsLock);
-			return RAMFS_ERR_DIRECTORY_EXISTS;
+			return RAMFS_ERR_FILE_EXISTS;
 		}
 	
 	// Allocate buffer for file data
