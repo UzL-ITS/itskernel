@@ -82,6 +82,9 @@ static tcp_conn_data_t *tcpConnDataList;
 // Mutex to ensure synchronized access to the TCP functions by this thread and the caller thread.
 static mutex_t lwipMutex;
 
+// Buffer for receiving packets.
+static uint8_t packetBuffer[ETHERNET_PACKET_SIZE];
+
 
 /* LWIP SYSTEM FUNCTIONS */
 
@@ -99,6 +102,29 @@ uint32_t sys_now()
 
 
 /* FUNCTIONS */
+
+// Polls for new packets and sends ticks to LWIP.
+// This function needs to be protected with global mutex!
+static void itslwip_poll()
+{
+	// Packet received?
+	int packetLength = sys_receive_network_packet(packetBuffer);
+	if(packetLength)
+	{
+		/*printf_locked("Received packet of length %d", packetLength);
+		for(int i = 0; i < packetLength; ++i)
+		{
+			if(i % 16 == 0)
+				printf_locked("\n    ");
+			printf_locked("%02x ", packetBuffer[i]);
+		}
+		printf_locked("\n");*/
+		itsnetif_input(&lwipNetif, packetBuffer, packetLength);
+	}
+	
+	// Update timers
+	sys_check_timeouts();
+}
 
 void itslwip_run(void *args)
 {
@@ -130,28 +156,10 @@ void itslwip_run(void *args)
 	mutex_release(&lwipMutex);
 	
 	// Poll for new packets and send ticks to LWIP
-	uint8_t packetBuffer[ETHERNET_PACKET_SIZE];
 	while(true)
 	{
-		// Packet received?
-		int packetLength = sys_receive_network_packet(packetBuffer);
 		mutex_acquire(&lwipMutex);
-		if(packetLength)
-		{
-			/*printf_locked("Received packet of length %d", packetLength);
-			for(int i = 0; i < packetLength; ++i)
-			{
-				if(i % 16 == 0)
-					printf_locked("\n    ");
-				printf_locked("%02x ", packetBuffer[i]);
-			}
-			printf_locked("\n");*/
-		
-			itsnetif_input(&lwipNetif, packetBuffer, packetLength);
-		}
-		
-		// Update timers
-		sys_check_timeouts();
+		itslwip_poll();
 		mutex_release(&lwipMutex);
 	}
 }
@@ -185,7 +193,7 @@ static err_t handle_tcp_sent(void *arg, struct tcp_pcb *tcpObj, u16_t len)
 	tcp_conn_data_t *tcpConnData = (tcp_conn_data_t *)arg;
 	
 	// Debug output
-	printf_locked("TCP successfully sent %d bytes\n", len);
+	//printf_locked("TCP successfully sent %d bytes\n", len);
 	
 	// Update queue size
 	tcpConnData->sendQueueSize -= len;
@@ -356,9 +364,7 @@ void itslwip_send(tcp_handle_t tcpHandle, uint8_t *data, int dataLength)
 		while((err = tcp_write(tcpConnData->tcpObj, &data[i], nextChunkSize, 0)) != ERR_OK)
 		{
 			// Give TCP time to send data and receive ACK messages
-			mutex_release(&lwipMutex);
-			sys_yield();
-			mutex_acquire(&lwipMutex);
+			itslwip_poll();
 		}
 		i += nextChunkSize;
 		tcpConnData->sendQueueSize += nextChunkSize;

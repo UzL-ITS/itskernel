@@ -123,7 +123,7 @@ void itsnetif_input(struct netif *netif, uint8_t *packet, int packetLength)
 		for(struct pbuf *q = p; q != 0; q = q->next)
 		{
 			// Copy packet part
-			memcpy(p->payload, packet + packetPos, q->len);
+			memcpy(q->payload, packet + packetPos, q->len);
 			packetPos += q->len;
 		}
 
@@ -197,7 +197,7 @@ err_t itsnetif_init(struct netif *netif)
 	// Set MAC hardware address
 	netif->hwaddr_len = ETHARP_HWADDR_LEN;
 	sys_get_network_mac_address((uint8_t *)&netif->hwaddr);
-	printf_locked("MAC: %02x:%02x:%02x:%02x:%02x:%02x\n", netif->hwaddr[0], netif->hwaddr[1], netif->hwaddr[2], netif->hwaddr[3], netif->hwaddr[4], netif->hwaddr[5]);
+	//printf_locked("MAC: %02x:%02x:%02x:%02x:%02x:%02x\n", netif->hwaddr[0], netif->hwaddr[1], netif->hwaddr[2], netif->hwaddr[3], netif->hwaddr[4], netif->hwaddr[5]);
 
 	// Set maximum transfer unit
 	// TODO configure driver correctly

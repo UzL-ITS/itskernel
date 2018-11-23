@@ -44,10 +44,20 @@ See src/include/lwip/opt.h for a list of all available options.
 
 // TCP
 #define LWIP_TCP 1
-#define TCP_MSS 1460
+#define MEM_SIZE                        (1024 * 1024) /* 1MiB */
+#define MEMP_NUM_PBUF                   1024
+#define MEMP_NUM_TCP_PCB                32
+#define PBUF_POOL_SIZE                  1024
+#define TCP_MSS                         1460
+#define TCP_WND                         (4*TCP_MSS)
+#define TCP_SND_BUF                     65535
+#define TCP_OVERSIZE                    TCP_MSS
+#define TCP_SND_QUEUELEN                512
+#define MEMP_NUM_TCP_SEG                512
+#define MEMP_SANITY_CHECK               0
 
 // Debug flags
-#define LWIP_DBG_MIN_LEVEL     LWIP_DBG_LEVEL_ALL
+/*#define LWIP_DBG_MIN_LEVEL     LWIP_DBG_LEVEL_ALL
 #define LWIP_DBG_TYPES_ON      LWIP_DBG_ON
 #define ETHARP_DEBUG           LWIP_DBG_ON
 #define NETIF_DEBUG            LWIP_DBG_ON
@@ -80,4 +90,4 @@ See src/include/lwip/opt.h for a list of all available options.
 #define DHCP_DEBUG             LWIP_DBG_ON
 #define AUTOIP_DEBUG           LWIP_DBG_ON
 #define DNS_DEBUG              LWIP_DBG_ON
-#define IP6_DEBUG              LWIP_DBG_ON
+#define IP6_DEBUG              LWIP_DBG_ON*/
