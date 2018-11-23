@@ -1058,6 +1058,7 @@ uintptr_t pmm_alloc_contiguous(int size, int count)
 
                     // Finished, return block
                     spin_unlock(&pmmLock);
+					trace_printf("Contiguous block address: %016x\n", lastContiguousAddress);
                     return lastContiguousAddress;
                 }
             }
