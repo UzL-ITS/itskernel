@@ -11,6 +11,7 @@ Intel i219 (e1000e) ethernet driver.
 #include <stdlib/string.h>
 #include <mm/heap.h>
 #include <cpu/pause.h>
+#include <lock/raw_spinlock.h>
 
 // Maximum Transmission Unit (this value is slightly arbitrary, it matches the value used in the user-space LWIP wrapper).
 #define I219_MTU 1522
@@ -117,6 +118,9 @@ static received_packet_t *receivedPacketsBufferListStart;
 
 // Determines whether initialization is done.
 static bool initialized = false;
+
+// Lock for the list of received packets.
+static raw_spinlock_t receiveLock = RAW_SPINLOCK_UNLOCKED;
 
 
 // Reads the given device register using MMIO.
@@ -319,8 +323,8 @@ void i219_init(pci_cfgspace_header_0_t *deviceCfgSpaceHeader)
 	rctl |= E1000_RCTL_SZ_2048; // BSIZE = 2048 (Receive Buffer Size)
 	rctl &= ~E1000_RCTL_BSEX;
 	rctl |= E1000_RCTL_SECRC; // SECRC (Strip Ethernet CRC)
-	rctl |= E1000_RCTL_MPE; // Promiscuous mode   -> for testing only!
-	rctl |= E1000_RCTL_UPE; // Promiscuous mode   -> for testing only!
+	//rctl |= E1000_RCTL_MPE; // Promiscuous mode   -> for testing only!
+	//rctl |= E1000_RCTL_UPE; // Promiscuous mode   -> for testing only!
 	i219_write(E1000_REG_RCTL, rctl);
 	
 	// Enable transmitter
@@ -528,13 +532,15 @@ void i219_send(uint8_t *packet, int packetLength)
 	
 	//trace_printf("Passing packet to device done.\n");
 	
-	debug_regs();
+	//debug_regs();
 }
 
 // Processes one received packet.
 // TODO use ITR (interrupt throttling register) to fire interrupts for multiple packets at once (less interrupts)
 static void i219_receive()
 {
+	raw_spinlock_lock(&receiveLock);
+	
 	// Receive multiple packets
 	for(int p = 0; p < RX_DESC_COUNT; ++p)
 	{
@@ -548,12 +554,12 @@ static void i219_receive()
 			uint8_t *packet = &rxBufferMem[newRxTail * RX_BUFFER_SIZE];
 			int packetLength = rxDescriptors[newRxTail].length;
 			
-			trace_printf("Received descriptor with length %d\n", packetLength);
+			/*trace_printf("Received descriptor with length %d\n", packetLength);
 			trace_printf("First bytes: ");
 			int debugLen = (packetLength > 32 ? 32 : packetLength);
 			for(int i = 0; i < debugLen; ++i)
 				trace_printf("%02x ", packet[i]);
-			trace_printf("...\n");
+			trace_printf("...\n");*/
 			
 			// Errors?
 			if(rxDescriptors[newRxTail].errors)
@@ -599,6 +605,8 @@ static void i219_receive()
 		else
 			break; // No more received packets
 	}
+	
+	raw_spinlock_unlock(&receiveLock);
 }
 
 int i219_next_received_packet(uint8_t *packetBuffer)
@@ -606,6 +614,8 @@ int i219_next_received_packet(uint8_t *packetBuffer)
 	// Any packet available?
 	if(!receivedPacketsQueueStart)
 		return 0;
+	
+	raw_spinlock_lock(&receiveLock);
 	
 	// Remove packet buffer entry from queue
 	received_packet_t *bufferEntry = receivedPacketsQueueStart;
@@ -622,6 +632,7 @@ int i219_next_received_packet(uint8_t *packetBuffer)
 	receivedPacketsBufferListStart = bufferEntry;
 	
 	// Done
+	raw_spinlock_unlock(&receiveLock);
 	return packetLength;
 }
 
@@ -635,12 +646,12 @@ bool i219_handle_interrupt(cpu_state_t *state)
 	uint32_t icr = i219_read(E1000_REG_ICR);
 	if(!icr)
 	{
-		trace_printf("Interrupt not caused by i219\n", icr);
+		//trace_printf("Interrupt not caused by i219\n", icr);
 		return false;
 	}
 	
 	// Handle set interrupts
-	trace_printf("Intel i219 interrupt! ICR: %08x\n", icr);
+	//trace_printf("Intel i219 interrupt! ICR: %08x\n", icr);
 	if(icr & E1000_ICR_RXT0)
 	{
 		// Receive timer expired, handle received packets

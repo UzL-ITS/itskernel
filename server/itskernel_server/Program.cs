@@ -1,23 +1,22 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Net.Sockets;
 using System.Text;
 
 namespace itskernel_server
 {
-    class Program
+    internal class Program
     {
         /// <summary>
         /// The TCP port the server listens on.
         /// </summary>
-        const int SERVER_PORT = 17571;
+        private const int SERVER_PORT = 17571;
 
         /// <summary>
         /// Application entry point.
         /// </summary>
         /// <param name="args">Application arguments. Unused here.</param>
-        static void Main(string[] args)
+        private static void Main(string[] args)
         {
             // Get working directory
             string workingDirectory = RequestUserConfig("working directory", @"R:\itskernel\");
@@ -131,8 +130,13 @@ namespace itskernel_server
                                 Console.WriteLine($"    Receiving file...");
                                 byte[] file = new byte[fileLength];
                                 int receivedBytes = 0;
+                                DateTime startTime = DateTime.Now;
                                 while(receivedBytes < fileLength)
+                                {
                                     receivedBytes += connReader.Read(file, receivedBytes, fileLength - receivedBytes);
+                                    Console.Write($"\r        {receivedBytes}/{fileLength} ({(100 * receivedBytes) / fileLength} %, {Math.Round(((double)receivedBytes / (DateTime.Now - startTime).Seconds) / 1024)} KB/s on average)");
+                                }
+                                Console.WriteLine();
 
                                 // Save file
                                 Console.WriteLine($"    Saving file...");
@@ -160,7 +164,7 @@ namespace itskernel_server
         /// <param name="name">The display name of the requested configuration item.</param>
         /// <param name="defaultValue">The default value that is returned when the user simply presses ENTER.</param>
         /// <returns></returns>
-        static string RequestUserConfig(string name, string defaultValue)
+        private static string RequestUserConfig(string name, string defaultValue)
         {
             // Ask for input
             Console.Write($"Enter {name} (default is \"{defaultValue}\"): ");
@@ -176,7 +180,7 @@ namespace itskernel_server
         /// </summary>
         /// <param name="reader">The reader to read the line from.</param>
         /// <returns></returns>
-        static string ReadLine(BinaryReader reader)
+        private static string ReadLine(BinaryReader reader)
         {
             StringBuilder str = new StringBuilder();
             char curr;
