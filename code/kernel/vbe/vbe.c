@@ -132,6 +132,8 @@ int vbe_create_context()
 		{
 			// Get drawing context
 			vbe_context_t *context = &contexts[i];
+			context->inUse = true;
+			spin_unlock(&vbeContextLock);
 	
 			// Initialize context
 			context->previousBuffer = (uint32_t *)heap_alloc(4 * renderBufferWidth * renderBufferHeight, VM_R | VM_W);
@@ -143,13 +145,10 @@ int vbe_create_context()
 			if(!context->previousBuffer || !context->currentBuffer)
 			{
 				panic("Error creating VBE context\n");
-				spin_unlock(&vbeContextLock);
 				return -2; // TODO better error codes
 			}
 			
-			// Context is up, return its identifier
-			context->inUse = true;
-			spin_unlock(&vbeContextLock);
+			// Done, return context identifier
 			trace_printf("Created VBE context #%d\n", i);
 			return i;
 		}
