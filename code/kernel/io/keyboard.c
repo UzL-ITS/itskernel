@@ -13,6 +13,7 @@ Keyboard driver.
 #include <proc/msg.h>
 #include <proc/proc.h>
 #include <cpu/pause.h>
+#include <time/pit.h>
 
 // PS/2 controller constants.
 #define PS2_DATA_PORT 0x60
@@ -116,12 +117,13 @@ void keyboard_poll()
 		_handle_key_press(0);
 }
 
-#include <time/pit.h>
 void keyboard_init()
 {
+	trace_printf("Initializing keyboard...\n");
+	
 	// Do self-test
 	outb(PS2_CONFIG_PORT, 0xAA);
-	_output_wait();
+	pit_mdelay(10);//_output_wait();
 	trace_printf("Keyboard self-test result: %02x\n", inb(PS2_DATA_PORT));
 	
 	// Discard pending output bytes
@@ -130,12 +132,12 @@ void keyboard_init()
 	
 	// Read configuration byte
 	outb(PS2_CONFIG_PORT, 0x20);
-	_output_wait();
+	pit_mdelay(10);//_output_wait();
 	uint8_t configByte = inb(PS2_DATA_PORT);
 	trace_printf("Configuration byte: %02x\n", configByte);
 	
 	// TODO workaround: If the configuration is not immediately correct, do not enable interrupt at all and use polling instead
-	if(!(configByte & 0x03))
+	if(1)//!(configByte & 0x03))
 	{
 		// Enable workaround
 		trace_printf("Enabling keyboard workaround...\n");
@@ -143,21 +145,27 @@ void keyboard_init()
 		
 		// Update configuration register
 		outb(PS2_CONFIG_PORT, 0x60);
-		_input_wait();
+		pit_mdelay(10);//_input_wait();
 		outb(PS2_DATA_PORT, 0x64); // Enable port 1, disable IRQs
+	}
+	else
+	{
+		// Install interrupt
+		irq_tuple_t tuple;
+		tuple.irq = 1;
+		tuple.active_polarity = POLARITY_HIGH;
+		tuple.trigger = TRIGGER_EDGE;
+		if(!intr_route_irq(&tuple, _handle_key_press))
+			trace_puts("Error: Could not install keyboard interrupt handler.\n");
+		else
+			trace_puts("Keyboard interrupt handler successfully installed.\n");
 	}
 	
 	// Discard pending output bytes
+	pit_mdelay(10);
 	while(inb(PS2_CONFIG_PORT) & 0x01)
+	{
 		inb(PS2_DATA_PORT);
-	
-	// Install interrupt
-	irq_tuple_t tuple;
-	tuple.irq = 1;
-	tuple.active_polarity = POLARITY_HIGH;
-	tuple.trigger = TRIGGER_EDGE;
-	if(!intr_route_irq(&tuple, _handle_key_press))
-		trace_puts("Error: Could not install keyboard interrupt handler.\n");
-	else
-		trace_puts("Keyboard interrupt handler successfully installed.\n");
+		pit_mdelay(10);
+	}
 }
