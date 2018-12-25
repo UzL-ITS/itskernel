@@ -261,8 +261,15 @@ paket-files/
 __pycache__/
 *.pyc
 
-# Cross compiler directory
-compiler/
+# Cross compiler build files
+compiler/bin/
+compiler/include/
+compiler/lib/
+compiler/libexec/
+compiler/share/
+compiler/x86_64-elf/
+compiler/binutils*
+compiler/gcc*
 
 # Final disk image
 disk.img*
