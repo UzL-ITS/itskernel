@@ -485,7 +485,7 @@ void main()
 		else if(strcmp(args[0], "scramble") == 0)
 		{
 			printf_locked("Allocate...\n");
-			sys_test();
+			//sys_test();
 			
 			
 			printf_locked("Done\n");
