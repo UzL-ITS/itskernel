@@ -12,6 +12,7 @@ The provided scripts assume a Debian-style Linux system with, among others, foll
 * texinfo
 * bison
 * flex
+* nasm
 
 ### Compiling build environment
 The kernel requires a special GCC-based cross-compiler.

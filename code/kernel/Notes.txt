@@ -78,6 +78,6 @@ Aktuell ist der Prozess-Heap nicht implementiert, stattdessen wird für jede All
 
 i219:
 	Die i219 ist nur die physikalische Schnittstelle (PHY), als Controller (MAC) fungiert Intels Sunrise Point PCH
-	i219 wird dennoch über PCIe wie gewohnt dargestellt, unter der spezifierten PCIe-Bus/Device/Function-Kombination (TODO check)
+	i219 wird dennoch über PCIe wie gewohnt dargestellt, unter der spezifierten PCIe-Bus/Device/Function-Kombination
 	Sie bietet einen 0x20000 Bytes großen DMA-Konfigurations-Speicherbereich unter BAR0
 	Programmierung ist im Wesentlichen dieselbe wie für ICH8 (für welches eine Dokumentation existiert)

@@ -1,5 +1,0 @@
-# Add libgcc multilib variant without red-zone requirement
-# See https://wiki.osdev.org/Libgcc_without_red_zone 
- 
-MULTILIB_OPTIONS += mno-red-zone
-MULTILIB_DIRNAMES += no-red-zone

@@ -14,7 +14,7 @@ Kernel UI process main file.
 #include <stdbool.h>
 #include <string.h>
 #include <stdint.h>
-#include "net/itslwip/itslwip.h"
+#include <itslwip.h>
 #include <internal/terminal/terminal.h>
 
 
