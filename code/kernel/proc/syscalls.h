@@ -110,5 +110,8 @@ uint64_t sys_virt_to_phy(uint64_t addr);
 
 // Resets the CPU using the ACPI.
 void sys_reset();
+
+// Custom system call for experiments.
+uint8_t *sys_custom(int param);
 	
 #endif

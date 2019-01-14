@@ -3,6 +3,7 @@
 #include <panic/panic.h>
 #include <cpu/port.h>
 #include <cpu/halt.h>
+#include <trace/trace.h>
 
 // Reset register data.
 static fadt_addr_type_t resetAddressType;

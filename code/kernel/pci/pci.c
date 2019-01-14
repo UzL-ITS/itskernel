@@ -13,6 +13,7 @@ PCI driver.
 #include <cpu/state.h>
 #include <net/net.h>
 #include <intr/common.h>
+#include <pci/msi.h>
 
 // Represents one discovered PCI device.
 typedef struct pci_device

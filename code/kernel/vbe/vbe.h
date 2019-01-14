@@ -49,4 +49,8 @@ void vbe_set_scroll_position(int contextId, uint32_t y);
 // Clears the buffer of the given context with its current background color.
 void vbe_clear(int contextId);
 
+// Returns a pointer to the primary render buffer of the given context. Only for debugging and experiments.
+// Note: Drawing to this buffer does not immediately update the screen.
+uint32_t* vbe_debug_get_render_buffer(int contextId);
+
 #endif

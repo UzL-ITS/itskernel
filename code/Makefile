@@ -12,9 +12,11 @@ MAKEFILE_DIR := $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
 ARCH := $(MAKEFILE_DIR)/../compiler/bin/x86_64-elf
 
 # Compiler
+# TODO add -O2 again
+#    -> breaks stack traces
+#    -> seems to corrupt network driver??
 CC := $(ARCH)-gcc
 CFLAGS := -std=c1x \
-          -O2 \
 		  -Wall \
 		  -Wextra \
 		  -Wno-unused-parameter \

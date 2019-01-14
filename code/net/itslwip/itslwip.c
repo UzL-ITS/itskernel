@@ -167,7 +167,7 @@ void itslwip_run(void *args)
 static void handle_tcp_error(void *arg, err_t err)
 {
 	// Get TCP connection data container
-	tcp_conn_data_t *tcpConnData = (tcp_conn_data_t *)arg;
+	//tcp_conn_data_t *tcpConnData = (tcp_conn_data_t *)arg;
 	
 	// Set error code
 	printf_locked("TCP error: %d\n", err);

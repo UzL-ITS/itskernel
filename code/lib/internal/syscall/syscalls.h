@@ -107,7 +107,10 @@ void sys_dump_files(char *buffer, int bufferLength);
 int sys_dump_files_get_buffer_size();
 
 // Resolves the underlying physical address of the given virtual address.
-uint64_t sys_virt_to_phy(uint64_t addr);uint64_t sys_virt_to_phy(uint64_t addr);
+uint64_t sys_virt_to_phy(uint64_t addr);
 
 // Resets the CPU using the ACPI.
 void sys_reset();
+
+// Custom system call for experiments.
+uint8_t *sys_custom(int param);

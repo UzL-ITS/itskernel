@@ -484,11 +484,15 @@ void main()
 		}
 		else if(strcmp(args[0], "scramble") == 0)
 		{
-			printf_locked("Allocate...\n");
-			//sys_test();
-			
-			
-			printf_locked("Done\n");
+			if(argCount < 2)
+				printf_locked("Missing argument.\n");
+			else
+			{
+				int mode = atoi(args[1]);
+				sys_custom(mode);
+				
+				printf_locked("Done\n");
+			}
 		}
 		else
 			printf_locked("Unknown command.\n");

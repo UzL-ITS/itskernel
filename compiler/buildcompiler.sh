@@ -90,6 +90,7 @@ if [ "$compileBinutils" = true ]; then
     make install
     
     echo "Building binutils completed."
+	cd ..
 fi
 
 # Check whether compiled gcc directory does already exist
@@ -141,6 +142,7 @@ if [ "$compileGcc" = true ]; then
     make install-target-libgcc
     
     echo "Building gcc completed."
+	cd ..
 fi
 
 # Tests

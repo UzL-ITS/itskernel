@@ -5,4 +5,4 @@
 void sys_reset()
 {
 	power_reset();
-}
+}

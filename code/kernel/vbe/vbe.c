@@ -122,6 +122,12 @@ static void _vbe_blit_to_video_memory(int contextId, uint32_t posX, uint32_t pos
 	spin_unlock(&vbeContextLock);
 }
 
+uint32_t* vbe_debug_get_render_buffer(int contextId)
+{
+	// Return current buffer; changes are applied to the screen after a call to _vbe_blit_to_video_memory
+	return contexts[contextId].currentBuffer;
+}
+
 int vbe_create_context()
 {
 	spin_lock(&vbeContextLock);
