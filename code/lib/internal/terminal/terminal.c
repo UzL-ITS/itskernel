@@ -29,12 +29,11 @@ ITS kernel standard library terminal implementation.
 #define SCROLLBAR_BAR_MIN_HEIGHT 4
 #define SCROLLBAR_ARROW_KEY_OFFSET 20
 
-// Colors.
-#define COLOR_BACKGROUND 0,0,0
-#define COLOR_BACKGROUND_WRAP_AROUND 20,20,20
-#define COLOR_FOREGROUND 255,255,255
-#define COLOR_SCROLLBAR_BACKGROUND 60,60,60
-#define COLOR_SCROLLBAR_FOREGROUND 200,200,200
+// Default colors.
+const color_t COLOR_DEFAULT_BACKGROUND = { 0, 0, 0 };
+const color_t COLOR_DEFAULT_FOREGROUND = { 255, 255, 255 };
+const color_t COLOR_DEFAULT_SCROLLBAR_BACKGROUND = { 60, 60, 60 };
+const color_t COLOR_DEFAULT_SCROLLBAR_FOREGROUND = { 200, 200, 200 };
 
 // Render window dimensions (in pixels).
 static uint32_t renderWindowWidth;
@@ -56,18 +55,31 @@ static uint32_t scrollYMax = 0;
 // The size of the actual scrollbar "bar".
 static uint32_t scrollbarBarHeight = 0;
 
+// Denotes whether a terminal wrap around has occured.
+static bool wrapAroundOccured = false;
+
 // The dimensions of the terminal typesetting area (in characters).
 static uint32_t terminalColumnCount;
 static uint32_t terminalRowCount;
 
-// Signals whether a wrap around has occured.
-static bool wrapAroundOccured = false;
-
-// Signals the current wrap around color.
-static bool wrapAroundColor = false;
+// Current colors.
+static color_t frontColor = COLOR_DEFAULT_FOREGROUND;
+static color_t backColor = COLOR_DEFAULT_BACKGROUND;
 
 
 /* FUNCTIONS */
+
+// Sets the given color as active draw front color.
+static void apply_front_color(color_t color)
+{
+	sys_vbe_set_front_color(color.r, color.g, color.b);
+}
+
+// Sets the given color as active draw back color.
+static void apply_back_color(color_t color)
+{
+	sys_vbe_set_back_color(color.r, color.g, color.b);
+}
 
 // Draws the scrollbar for the current scroll position.
 static void draw_scrollbar()
@@ -78,15 +90,22 @@ static void draw_scrollbar()
 	uint32_t barOffsetY = (scrollY * renderWindowHeight) / terminalHeight;
 	
 	// Render background
-	sys_vbe_set_front_color(COLOR_SCROLLBAR_BACKGROUND);
+	apply_front_color(COLOR_DEFAULT_SCROLLBAR_BACKGROUND);
 	sys_vbe_rectangle(posX, posY, SCROLLBAR_WIDTH, renderWindowHeight);
 	
 	// Render bar
-	sys_vbe_set_front_color(COLOR_SCROLLBAR_FOREGROUND);
+	apply_front_color(COLOR_DEFAULT_SCROLLBAR_FOREGROUND);
 	sys_vbe_rectangle(posX, posY + barOffsetY, SCROLLBAR_WIDTH, scrollbarBarHeight);
 	
 	// Reset color
-	sys_vbe_set_front_color(COLOR_FOREGROUND);
+	apply_front_color(frontColor);
+}
+
+// Draws the cursor at the current position, using the current foreground color.
+static void draw_cursor()
+{
+	// Draw cursor
+	sys_vbe_rectangle(TERMINAL_PADDING + currentColumn * COLUMN_WIDTH, TERMINAL_PADDING + currentRow * ROW_HEIGHT, VBE_FONT_CHARACTER_WIDTH, VBE_FONT_CHARACTER_HEIGHT);
 }
 
 void terminal_init(int lines)
@@ -109,8 +128,8 @@ void terminal_init(int lines)
 	}
 	
 	// Clear buffer
-	sys_vbe_set_front_color(COLOR_FOREGROUND);
-	sys_vbe_set_back_color(COLOR_BACKGROUND);
+	apply_front_color(frontColor);
+	apply_back_color(backColor);
 	sys_vbe_clear();
 	
 	// Draw scrollbar for current display
@@ -123,6 +142,12 @@ void terminal_init(int lines)
 
 void terminal_putc(char c)
 {
+	// Clear cursor
+	apply_back_color(backColor);
+	apply_front_color(backColor);
+	draw_cursor();
+	apply_front_color(frontColor);
+	
 	// Act depending on character type, consider control chars
 	switch(c)
 	{
@@ -159,12 +184,10 @@ void terminal_putc(char c)
 
 		case '\b':
 		{
-			// Delete preceding character, if there is any
+			// Go one character back, if possible
+			// There is no need to clear the character, since the cursor will be drawn at this position
 			if(currentColumn > 0)
-			{
 				--currentColumn;
-				sys_vbe_render_char(TERMINAL_PADDING + currentColumn * COLUMN_WIDTH, TERMINAL_PADDING + currentRow * ROW_HEIGHT, ' ');
-			}
 			break;
 		}
 
@@ -185,22 +208,17 @@ void terminal_putc(char c)
 	}
 
 	// When the last row is reached, wrap around to the top one (ring buffer)
-	// A nice scrolling terminal will be available once the scheduler is up.
 	if(currentRow >= terminalRowCount)
 	{
 		currentRow = 0;
 		wrapAroundOccured = true;
-		wrapAroundColor = !wrapAroundColor;
 	}
 
 	// New row? -> If wrap around has occured, clear the current and the next row
 	if(currentColumn == 0 && wrapAroundOccured)
 	{
 		// Set clear color
-		if(wrapAroundColor)
-			sys_vbe_set_front_color(COLOR_BACKGROUND_WRAP_AROUND);
-		else
-			sys_vbe_set_front_color(COLOR_BACKGROUND);
+		apply_front_color(backColor);
 
 		// Clear current row
 		sys_vbe_rectangle(TERMINAL_PADDING, TERMINAL_PADDING + currentRow * ROW_HEIGHT, terminalColumnCount * COLUMN_WIDTH, ROW_HEIGHT);
@@ -209,9 +227,12 @@ void terminal_putc(char c)
 		if(currentRow + 1 < terminalRowCount)
 			sys_vbe_rectangle(TERMINAL_PADDING, TERMINAL_PADDING + (currentRow + 1) * ROW_HEIGHT, terminalColumnCount * COLUMN_WIDTH, ROW_HEIGHT);
 
-		// Reset color
-		sys_vbe_set_front_color(COLOR_FOREGROUND);
+		// Restore color
+		apply_front_color(frontColor);
 	}
+	
+	// Draw cursor
+	draw_cursor();
 }
 
 void terminal_puts(const char *str)
@@ -275,4 +296,23 @@ void terminal_draw(uint32_t x, uint32_t y, uint32_t width, uint32_t height)
 {
 	// Draw rectangle relative to current position
 	sys_vbe_rectangle(TERMINAL_PADDING + currentColumn * COLUMN_WIDTH + x, TERMINAL_PADDING + currentRow * ROW_HEIGHT + y, width, height);
+}
+
+void terminal_set_front_color(color_t color)
+{
+	// Set color
+	frontColor = color;
+}
+
+void terminal_set_back_color(color_t color)
+{
+	// Set color
+	backColor = color;
+}
+
+void terminal_reset_colors()
+{
+	// Set default colors
+	frontColor = COLOR_DEFAULT_FOREGROUND;
+	backColor = COLOR_DEFAULT_BACKGROUND;
 }
