@@ -27,13 +27,15 @@ ITS kernel standard library terminal implementation.
 // Size of the scrollbar.
 #define SCROLLBAR_WIDTH 8
 #define SCROLLBAR_BAR_MIN_HEIGHT 4
+#define SCROLLBAR_CURRENT_LINE_HEIGHT 3
 #define SCROLLBAR_ARROW_KEY_OFFSET 20
 
 // Default colors.
 const color_t COLOR_DEFAULT_BACKGROUND = { 0, 0, 0 };
 const color_t COLOR_DEFAULT_FOREGROUND = { 255, 255, 255 };
 const color_t COLOR_DEFAULT_SCROLLBAR_BACKGROUND = { 60, 60, 60 };
-const color_t COLOR_DEFAULT_SCROLLBAR_FOREGROUND = { 200, 200, 200 };
+const color_t COLOR_DEFAULT_SCROLLBAR_BAR = { 200, 200, 200 };
+const color_t COLOR_DEFAULT_SCROLLBAR_CURRENT_LINE = { 0, 200, 0 };
 
 // Render window dimensions (in pixels).
 static uint32_t renderWindowWidth;
@@ -84,18 +86,23 @@ static void apply_back_color(color_t color)
 // Draws the scrollbar for the current scroll position.
 static void draw_scrollbar()
 {
-	// Calculate render dimensions
+	// Calculate render position
 	uint32_t posX = renderWindowWidth - SCROLLBAR_WIDTH;
 	uint32_t posY = scrollY;
-	uint32_t barOffsetY = (scrollY * renderWindowHeight) / terminalHeight;
 	
 	// Render background
 	apply_front_color(COLOR_DEFAULT_SCROLLBAR_BACKGROUND);
 	sys_vbe_rectangle(posX, posY, SCROLLBAR_WIDTH, renderWindowHeight);
 	
 	// Render bar
-	apply_front_color(COLOR_DEFAULT_SCROLLBAR_FOREGROUND);
+	uint32_t barOffsetY = (scrollY * renderWindowHeight) / terminalHeight; // Order of multiplication and division reversed, to avoid loss of precision
+	apply_front_color(COLOR_DEFAULT_SCROLLBAR_BAR);
 	sys_vbe_rectangle(posX, posY + barOffsetY, SCROLLBAR_WIDTH, scrollbarBarHeight);
+	
+	// Render line of cursor
+	uint32_t cursorOffsetY = (currentRow * ROW_HEIGHT * renderWindowHeight) / terminalHeight;
+	apply_front_color(COLOR_DEFAULT_SCROLLBAR_CURRENT_LINE);
+	sys_vbe_rectangle(posX, posY + cursorOffsetY, SCROLLBAR_WIDTH, SCROLLBAR_CURRENT_LINE_HEIGHT);
 	
 	// Reset color
 	apply_front_color(frontColor);
@@ -164,6 +171,7 @@ void terminal_putc(char c)
 		{
 			// Next row
 			++currentRow;
+			draw_scrollbar();
 		}
 		__attribute__ ((fallthrough));
 		case '\r':
@@ -205,12 +213,14 @@ void terminal_putc(char c)
 	{
 		currentColumn = 0;
 		++currentRow;
+		draw_scrollbar();
 	}
 
 	// When the last row is reached, wrap around to the top one (ring buffer)
 	if(currentRow >= terminalRowCount)
 	{
 		currentRow = 0;
+		draw_scrollbar();
 		wrapAroundOccured = true;
 	}
 
