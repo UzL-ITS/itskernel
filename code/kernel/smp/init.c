@@ -183,7 +183,7 @@ void smp_ap_init(void)
 	topology_init(cpu);
 
 	/* set up the scheduler */
-	sched_init();
+	sched_init(false);
 
 	/* halt forever - the scheduler will take over from here */
 	halt_forever();

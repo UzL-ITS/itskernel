@@ -65,7 +65,6 @@ Segmentation:
 TODO Nicht Interrupt-basiertes Locking bei VBE und proc verwenden (unnötig?)
 
 Aktuell nur 12 VBE-Kontexte möglich -> max. 12 Prozesse (einschließlich Kernel und Idles)
-	TODO wie verteilt der Scheduler die Threads auf CPUs?
 
 sleep-Funktion
 
@@ -81,3 +80,12 @@ i219:
 	i219 wird dennoch über PCIe wie gewohnt dargestellt, unter der spezifierten PCIe-Bus/Device/Function-Kombination
 	Sie bietet einen 0x20000 Bytes großen DMA-Konfigurations-Speicherbereich unter BAR0
 	Programmierung ist im Wesentlichen dieselbe wie für ICH8 (für welches eine Dokumentation existiert)
+
+TODO Feature-Ideen:
+	Bilder in UserSpace-Terminal
+		Aktuellen Speicherstatus/Belegung abrufen und anzeigen
+	Standard-Linux-Befehle
+	Kernel-Threads
+	Geziele Allokierung bestimmter phys. Adressen
+	Contiguous Allocation fixen
+	USB-Support -> PrettyOS

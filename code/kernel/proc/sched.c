@@ -29,6 +29,17 @@ static void sched_handle_apic_interrupt(cpu_state_t *state)
 	// Increment timer counter
 	cpu_t *cpu = cpu_get();
 	cpu->elapsedMsSinceStart += SCHED_TIMESLICE;
+
+	// Process scheduler tick
+	sched_tick(state);
+}
+
+// Handles an APIC timer interrupt and polls the keyboard.
+static void sched_handle_apic_interrupt_kbd(cpu_state_t *state)
+{
+	// Increment timer counter
+	cpu_t *cpu = cpu_get();
+	cpu->elapsedMsSinceStart += SCHED_TIMESLICE;
 	
 	// Keyboard workaround
 	keyboard_poll();
@@ -37,16 +48,22 @@ static void sched_handle_apic_interrupt(cpu_state_t *state)
 	sched_tick(state);
 }
 
-void sched_init(void)
+void sched_init(bool bsp)
 {
-	// Install interrupt handler, if not already done
+	// Assign interrupt handler, if not already done
 	spin_lock(&interruptInstalledLock);
 	if(!interruptInstalled)
 	{
+		// Use special handler for boot core
+		intr_handler_t *handler = &sched_handle_apic_interrupt;
+		if(bsp)
+			handler = &sched_handle_apic_interrupt_kbd;
+	
+		// Install handler
 		if(smp_mode == MODE_SMP)
-			apic_timer_install_handler(&sched_handle_apic_interrupt);
+			apic_timer_install_handler(handler);
 		else
-			pit_timer_install_handler(&sched_handle_apic_interrupt);
+			pit_timer_install_handler(handler);
 		interruptInstalled = true;
 	}
 	spin_unlock(&interruptInstalledLock);

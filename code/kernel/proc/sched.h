@@ -4,8 +4,11 @@
 
 #include <cpu/state.h>
 #include <proc/thread.h>
+#include <stdbool.h>
 
-void sched_init(void);
+// Starts the scheduler for the given core.
+// The "bsp" flag should only be set for the initial boot core.
+void sched_init(bool bsp);
 
 /*
  * add/remove a thread from the scheduler's queue

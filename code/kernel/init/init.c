@@ -209,7 +209,7 @@ noreturn void init(uint32_t magic, multiboot_t *multiboot)
 
 	/* set up the scheduler for this core, also needs SMP mode */
 	trace_puts("Initializing scheduler...\n");
-	sched_init();
+	sched_init(true);
 
 	/* halt forever - the scheduler will take over from here */
 	halt_forever();

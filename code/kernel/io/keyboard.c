@@ -18,6 +18,7 @@ Keyboard driver.
 // PS/2 controller constants.
 #define PS2_DATA_PORT 0x60
 #define PS2_CONFIG_PORT 0x64
+#define PS2_STATUS_PORT 0x64
 
 
 // Currently pressed keys.
@@ -95,15 +96,27 @@ static void _handle_key_press(cpu_state_t *UNUSED_state)
 static void _output_wait()
 {
 	// Wait for data available status bit
-	while(!(inb(PS2_CONFIG_PORT) & 0x01))
+	uint8_t status;
+	while(!((status = inb(PS2_STATUS_PORT)) & 0x01))
 		pause_once();
+	trace_printf("Leaving _output_wait with status %02x\n", status);
 }
 
 static void _input_wait()
 {
-	// Wait for ready status bit
-	while(!(inb(PS2_CONFIG_PORT) & 0x02))
+	// Wait until controller is ready for input
+	uint8_t status;
+	while(1)
+	{
+		// Input buffer empty and controller ready?
+		status = inb(PS2_STATUS_PORT);
+		if(!(status & 0x02) && (status & 0x04))
+			break;
+		
+		// Wait a moment
 		pause_once();
+	}
+	trace_printf("Leaving _input_wait with status %02x\n", status);
 }
 
 void keyboard_poll()
@@ -113,7 +126,7 @@ void keyboard_poll()
 		return;
 	
 	// Call interrupt handler, while new data is available
-	while(inb(PS2_CONFIG_PORT) & 0x01)
+//	while(inb(PS2_STATUS_PORT) & 0x01)
 		_handle_key_press(0);
 }
 
@@ -123,21 +136,27 @@ void keyboard_init()
 	
 	// Do self-test
 	outb(PS2_CONFIG_PORT, 0xAA);
-	pit_mdelay(10);//_output_wait();
-	trace_printf("Keyboard self-test result: %02x\n", inb(PS2_DATA_PORT));
+	pit_mdelay(2);
+	_output_wait();
+	trace_printf("8042 self-test result: %02x\n", inb(PS2_DATA_PORT));
+	outb(PS2_CONFIG_PORT, 0xAB);
+	pit_mdelay(2);
+	_output_wait();
+	trace_printf("8042 Port 1 self-test result: %02x\n", inb(PS2_DATA_PORT));
 	
 	// Discard pending output bytes
-	while(inb(PS2_CONFIG_PORT) & 0x01)
+	while(inb(PS2_STATUS_PORT) & 0x01)
 		inb(PS2_DATA_PORT);
 	
 	// Read configuration byte
 	outb(PS2_CONFIG_PORT, 0x20);
-	pit_mdelay(10);//_output_wait();
+	pit_mdelay(2);
+	_output_wait();
 	uint8_t configByte = inb(PS2_DATA_PORT);
 	trace_printf("Configuration byte: %02x\n", configByte);
 	
 	// TODO workaround: If the configuration is not immediately correct, do not enable interrupt at all and use polling instead
-	if(1)//!(configByte & 0x03))
+	if(!(configByte & 0x03))
 	{
 		// Enable workaround
 		trace_printf("Enabling keyboard workaround...\n");
@@ -145,8 +164,27 @@ void keyboard_init()
 		
 		// Update configuration register
 		outb(PS2_CONFIG_PORT, 0x60);
-		pit_mdelay(10);//_input_wait();
+		pit_mdelay(2);
+		_input_wait();
 		outb(PS2_DATA_PORT, 0x64); // Enable port 1, disable IRQs
+		pit_mdelay(2);
+		
+		
+		outb(PS2_CONFIG_PORT, 0x20);
+		pit_mdelay(2);
+		_output_wait();
+		trace_printf("New configuration byte: %02x\n", inb(PS2_DATA_PORT));
+		
+		//TODO: Bei neuem NUC wird Config-Byte einmal mit +0x01 erhöht (bei steigender flanke), bei altem gar nicht
+		//-> Polling sollte dort gar nicht funktionieren
+		//TEST
+		/*pit_mdelay(2);
+		while(1)
+		{
+			trace_printf("%02x %02x\n", inb(PS2_STATUS_PORT), inb(PS2_DATA_PORT));
+			pit_mdelay(500);
+		}
+		halt_forever();*/
 	}
 	else
 	{
@@ -162,10 +200,12 @@ void keyboard_init()
 	}
 	
 	// Discard pending output bytes
-	pit_mdelay(10);
-	while(inb(PS2_CONFIG_PORT) & 0x01)
+	pit_mdelay(2);
+	while(inb(PS2_STATUS_PORT) & 0x01)
 	{
 		inb(PS2_DATA_PORT);
-		pit_mdelay(10);
+		pit_mdelay(2);
 	}
+	
+	trace_printf("Keyboard initialization end\n");
 }
