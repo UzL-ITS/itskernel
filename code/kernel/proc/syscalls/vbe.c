@@ -18,6 +18,11 @@ int sys_vbe_rectangle(uint32_t posX, uint32_t posY, uint32_t width, uint32_t hei
 	return vbe_rectangle(get_vbe_context(), posX, posY, width, height);
 }
 
+int sys_vbe_draw(uint32_t *pixels, uint32_t posX, uint32_t posY, uint32_t width, uint32_t height)
+{
+	vbe_draw(get_vbe_context(), pixels, posX, posY, width, height);
+}
+
 int sys_vbe_render_char(uint32_t posX, uint32_t posY, char c)
 {
 	return vbe_render_char(get_vbe_context(), posX, posY, c);

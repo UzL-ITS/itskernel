@@ -25,6 +25,9 @@ void vbe_show_context(int contextId);
 // Draws a rectangle at the specified position with the given dimensions.
 int vbe_rectangle(int contextId, uint32_t posX, uint32_t posY, uint32_t width, uint32_t height);
 
+// Draws pixel data at the specified position.
+int vbe_draw(int contextId, uint32_t *pixels, uint32_t posX, uint32_t posY, uint32_t width, uint32_t height);
+
 // Renders the given character at the given render buffer position. Currently only ASCII characters (' ' ... '~') are supported.
 int vbe_render_char(int contextId, uint32_t posX, uint32_t posY, char c);
 

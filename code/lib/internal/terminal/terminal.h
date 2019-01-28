@@ -7,6 +7,7 @@ ITS kernel standard library terminal implementation.
 /* INCLUDES */
 
 #include <stdint.h>
+#include <stdbool.h>
 #include <internal/keyboard/keycodes.h>
 
 
@@ -36,8 +37,11 @@ void terminal_puts(const char *str);
 // Handles the given navigation key press.
 void terminal_handle_navigation_key(vkey_t keyCode);
 
-// Draws a rectangle relative to the current position.
-void terminal_draw(uint32_t x, uint32_t y, uint32_t width, uint32_t height);
+// Draws a rectangle relative at the current position.
+void terminal_draw_rectangle(uint32_t width, uint32_t height, bool moveCursor);
+
+// Draws the given ARGB pixel data at the current position.
+void terminal_draw(uint32_t *pixels, uint32_t width, uint32_t height, bool moveCursor);
 
 // Sets the terminal foreground color.
 void terminal_set_front_color(color_t color);

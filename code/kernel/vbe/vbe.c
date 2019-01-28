@@ -5,6 +5,7 @@
 #include <mm/heap.h>
 #include <panic/panic.h>
 #include <lock/spinlock.h>
+#include <stdlib/string.h>
 
 
 // VBE drawing context descriptor.
@@ -221,6 +222,26 @@ int vbe_rectangle(int contextId, uint32_t posX, uint32_t posY, uint32_t width, u
 			*pixel = context->colorFront;
 			++pixel;
 		}
+	}
+	_vbe_blit_to_video_memory(contextId, posX, posY, width, height);
+	return 0;
+}
+
+int vbe_draw(int contextId, uint32_t *pixels, uint32_t posX, uint32_t posY, uint32_t width, uint32_t height)
+{
+	// Get drawing context
+	vbe_context_t *context = &contexts[contextId];
+	
+	// Sanity checks for parameters
+	if(posX >= renderBufferWidth || posX + width > renderBufferWidth)
+		return -1;
+	if(posY >= context->currentBufferHeight || posY + height > context->currentBufferHeight)
+		return -2;
+	
+	// Copy pixel data row-wise
+	for(uint32_t i = 0; i < height; ++i)
+	{
+		memcpy(context->currentBuffer + (posY + i) * renderBufferWidth + posX, pixels + i * width, sizeof(uint32_t) * width);
 	}
 	_vbe_blit_to_video_memory(contextId, posX, posY, width, height);
 	return 0;

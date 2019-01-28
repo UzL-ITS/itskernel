@@ -160,8 +160,6 @@ void test_func(void *args)
 		
 		measurementBuffer[p] = (uint16_t)(total / ROUNDS);
 	}
-	
-	terminal_draw(20, 20, 20, 20);
 
 	for(int p = 0; p < PAGE_COUNT; ++p)
 		if(measurementBuffer[p] > 250)

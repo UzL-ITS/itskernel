@@ -53,6 +53,7 @@ uintptr_t syscall_table[] =
 	/* 32 */ (uintptr_t)&sys_virt_to_phy,
 	/* 33 */ (uintptr_t)&sys_reset,
 	/* 34 */ (uintptr_t)&sys_custom,
+	/* 35 */ (uintptr_t)&sys_vbe_draw,
 };
 uint64_t syscall_table_size = sizeof(syscall_table) / sizeof(*syscall_table);
 

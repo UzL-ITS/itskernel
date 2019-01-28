@@ -54,6 +54,9 @@ void sys_vbe_set_scroll_position(uint32_t y);
 // Clears the buffer with the current background color.
 void sys_vbe_clear();
 
+// Renders the given pixel data at the specified position.
+int sys_vbe_draw(uint32_t *pixels, uint32_t posX, uint32_t posY, uint32_t width, uint32_t height);
+
 // Allocates a 4K aligned block of memory of the given size (rounded up to a multiple of 4K).
 void *sys_heap_alloc(int size);
 

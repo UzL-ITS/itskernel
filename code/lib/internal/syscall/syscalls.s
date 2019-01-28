@@ -21,7 +21,7 @@
 	ret
 %endmacro
 
-; Creates a system call wrapper routine for functions with 4 arguments.
+; Creates a system call wrapper routine for functions with 4 to 6 arguments.
 ; Parameters:
 ;     - System call function name
 ;     - System call number
@@ -31,7 +31,7 @@
 	; Preserve R12 (is trashed by syscall handler)
 	push r12
 
-	; Parameters #0, #1, #2 are already in the correct registers
+	; Parameters #0, #1, #2, #4, #5 are already in the correct registers
 	; Parameter #3 must be copied to R10, since RCX is overwritten by SYSCALL
 	mov r10, rcx
 	
@@ -79,3 +79,4 @@ syscallwrapper sys_dump_files_get_buffer_size, 31
 syscallwrapper sys_virt_to_phy, 32
 syscallwrapper sys_reset, 33
 syscallwrapper sys_custom, 34
+syscallwrapper4 sys_vbe_draw, 35
