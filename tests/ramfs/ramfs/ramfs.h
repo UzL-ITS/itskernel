@@ -1,6 +1,6 @@
 /*
 ITS kernel RAM file system implementation.
-Warning: This implementation is not thread-safe right now!
+File and directory names are limited to 64 characters.
 */
 
 /* INCLUDES */
@@ -33,7 +33,21 @@ typedef enum
 
 	// Returned when a file to be created already exists.
 	RAMFS_ERR_FILE_EXISTS,
+
+	// Returned when a provided buffer is too small.
+	RAMFS_ERR_BUFFER_TOO_SMALL,
+
+	// Returned when a file is already opened.
+	RAMFS_ERR_FILE_ALREADY_OPEN,
+
+	// Returned when too many files are opened.
+	RAMFS_ERR_TOO_MANY_OPEN_FILES,
+
 } ramfs_err_t;
+
+// Pointer to an opened file.
+typedef int ramfs_fd_t;
+#define RAMFS_FD_INVALID -1
 
 
 /* DECLARATIONS */
@@ -41,15 +55,44 @@ typedef enum
 // Initializes the RAM file system.
 void ramfs_init();
 
+// Opens the given file and stores the descriptor in the given variable.
+// If the file does not exist, it is created.
+ramfs_err_t ramfs_open(const char *path, ramfs_fd_t *fdPtr);
+
+// Closes the given file.
+void ramfs_close(ramfs_fd_t fd);
+
+// Reads the given amount of bytes into the given buffer.
+int ramfs_read(void *buffer, int length, ramfs_fd_t fd);
+
+// Writes the given amount of bytes.
+int ramfs_write(void *buffer, int length, ramfs_fd_t fd);
+
+// Returns the current position in the file.
+int ramfs_tell(ramfs_fd_t fd);
+
+// Moves to the given position in the file.
+void ramfs_seek(int position, ramfs_fd_t fd);
+
 // Creates a new directory under the given path.
 ramfs_err_t ramfs_create_directory(const char *path, const char *name);
 
-// Creates a new file under the given path.
-// The given data pointer is assigned to the file entry then, thus it must not be freed!
+
+
+
+
+
+// Creates a new file at the given path.
 ramfs_err_t ramfs_create_file(const char *path, const char *name, void *data, int dataLength);
 
 // Returns the contents of the given file.
-ramfs_err_t ramfs_get_file(const char *path, void **dataPtr, int *dataLengthPtr);
+ramfs_err_t ramfs_get_file(const char *path, void *dataBuffer, int dataBufferLength);
 
-// Dumps the entire RAM file system tree (for debugging).
-void ramfs_dump();
+// Returns the metadata of the given file.
+ramfs_err_t ramfs_get_file_info(const char *path, int *dataLengthPtr);
+
+// Dumps the entire RAM file system tree into the given string buffer.
+void ramfs_dump(char *buffer, int bufferLength);
+
+// Returns the size of the string buffer that is needed to write the entire tree.
+int ramfs_dump_get_buffer_size();
