@@ -74,7 +74,7 @@ int ramfs_tell(ramfs_fd_t fd);
 // Moves to the given position in the file.
 void ramfs_seek(int position, ramfs_fd_t fd);
 
-// Creates a new directory under the given path.
+// Creates a new directory at the given path.
 ramfs_err_t ramfs_create_directory(const char *path, const char *name);
 
 
@@ -82,14 +82,6 @@ ramfs_err_t ramfs_create_directory(const char *path, const char *name);
 
 
 
-// Creates a new file at the given path.
-ramfs_err_t ramfs_create_file(const char *path, const char *name, void *data, int dataLength);
-
-// Returns the contents of the given file.
-ramfs_err_t ramfs_get_file(const char *path, void *dataBuffer, int dataBufferLength);
-
-// Returns the metadata of the given file.
-ramfs_err_t ramfs_get_file_info(const char *path, int *dataLengthPtr);
 
 // Dumps the entire RAM file system tree into the given string buffer.
 void ramfs_dump(char *buffer, int bufferLength);

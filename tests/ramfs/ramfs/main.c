@@ -1,9 +1,9 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include "ramfs.h"
 
-char data1[500];
-char data2[200];
-char data3[600];
+uint8_t data1[10000];
+uint8_t data2[10000];
 
 int main()
 {
@@ -26,7 +26,44 @@ int main()
 	printf("Create directory 15: %d\n", ramfs_create_directory("/a2/b/", "c"));
 	printf("Create directory 16: %d\n", ramfs_create_directory("/a2/b/c", "d/e")); // FAIL
 
-	printf("Create file 1: %d\n", ramfs_create_file("/a/b/c", "test.txt", data1, sizeof(data1)));
+    for(int i = 0; i < 10000; ++i)
+    {
+        data1[i] = i % 256;
+        data2[i] = 255 - i % 256;
+    }
+
+    ramfs_fd_t fd;
+    printf("fopen 1: %d\n", ramfs_open("/a/b/c/test.txt", &fd));
+    printf("fwrite 1: %d\n", ramfs_write(data1, 100, fd));
+    printf("fwrite 2: %d\n", ramfs_write(data1 + 100, 9000, fd));
+    printf("fwrite 3: %d\n", ramfs_write(data1 + 9100, 900, fd));
+    printf("ftell 1: %d\n", ramfs_tell(fd));
+    ramfs_seek(9900, fd);
+    printf("fwrite 4: %d\n", ramfs_write(data2, 5000, fd));
+
+    int fileLen = ramfs_tell(fd);
+    printf("ftell 2: %d\n", fileLen);
+    ramfs_seek(0, fd);
+    uint8_t *verif = malloc(fileLen);
+    printf("fread 1: %d\n", ramfs_read(verif, fileLen, fd));
+    for(int i = 0; i < 9900; ++i)
+        if(verif[i] != data1[i])
+        {
+            printf("Violation at 1[%d]\n", i);
+            break;
+        }
+    for(int i = 0; i < 5000; ++i)
+        if(verif[9900 + i] != data2[i])
+        {
+            printf("Violation at 2[%d]\n", i);
+            break;
+        }
+
+    ramfs_close(fd);
+
+    printf("Done.");
+
+/*	printf("Create file 1: %d\n", ramfs_create_file("/a/b/c", "test.txt", data1, sizeof(data1)));
 	printf("Create file 2: %d\n", ramfs_create_file("/a/b/c", "test2.txt", data2, sizeof(data2)));
 	printf("Create file 3: %d\n", ramfs_create_file("/", "a/test3.txt", data3, sizeof(data3))); // FAIL
 	printf("Create file 4: %d\n", ramfs_create_file("/", "test3.txt", data3, sizeof(data3)));
@@ -41,9 +78,9 @@ int main()
 	printf("Get file 5: %d\n", ramfs_get_file("bla.txt", &data, &dataLength)); // FAIL
 	printf("Get file 6: %d\n", ramfs_get_file("/bla.txt", &data, &dataLength)); // FAIL
 	printf("Get file 7: %d\n", ramfs_get_file("test3.txt", &data, &dataLength)); // FAIL
-	printf("Get file 8: %d\n", ramfs_get_file("/test3.txt", &data, &dataLength));
+	printf("Get file 8: %d\n", ramfs_get_file("/test3.txt", &data, &dataLength));*/
 
-	ramfs_dump();
+//	ramfs_dump();
 
 	getchar();
 }
