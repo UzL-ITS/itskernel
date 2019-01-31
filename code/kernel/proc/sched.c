@@ -55,7 +55,7 @@ void sched_init(bool bsp)
 	if(!interruptInstalled)
 	{
 		// Use special handler for boot core
-		intr_handler_t *handler = &sched_handle_apic_interrupt;
+		intr_handler_t handler = &sched_handle_apic_interrupt;
 		if(bsp)
 			handler = &sched_handle_apic_interrupt_kbd;
 	

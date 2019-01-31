@@ -34,7 +34,7 @@ uint8_t *sys_custom(int param)
 	}
 	else if(param == 1)
 	{
-		sys_create_file("/", "mem.bin", mem, size);
+		//sys_create_file("/", "mem.bin", mem, size);
 	}
 	
 	trace_printf("sys_test() done.\n");

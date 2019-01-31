@@ -2,8 +2,8 @@
 #include <stdlib.h>
 #include "ramfs.h"
 
-uint8_t data1[10000];
-uint8_t data2[10000];
+uint8_t data1[100000];
+uint8_t data2[100000];
 
 int main()
 {
@@ -26,14 +26,14 @@ int main()
 	printf("Create directory 15: %d\n", ramfs_create_directory("/a2/b/", "c"));
 	printf("Create directory 16: %d\n", ramfs_create_directory("/a2/b/c", "d/e")); // FAIL
 
-    for(int i = 0; i < 10000; ++i)
+    for(int i = 0; i < 100000; ++i)
     {
         data1[i] = i % 256;
         data2[i] = 255 - i % 256;
     }
 
     ramfs_fd_t fd;
-    printf("fopen 1: %d\n", ramfs_open("/a/b/c/test.txt", &fd));
+    printf("fopen 1: %d\n", ramfs_open("/test/test.txt", &fd));
     printf("fwrite 1: %d\n", ramfs_write(data1, 100, fd));
     printf("fwrite 2: %d\n", ramfs_write(data1 + 100, 9000, fd));
     printf("fwrite 3: %d\n", ramfs_write(data1 + 9100, 900, fd));
@@ -60,6 +60,34 @@ int main()
         }
 
     ramfs_close(fd);
+
+    // Create more dummy files
+    uint64_t sizes[4] = { 256, 330 * 1024, 1023ull * 1024 * 1024, 2ull * 1024 * 1024 * 1024 };
+    for(int i = 1; i < 4; ++i)
+        sizes[i] += sizes[i - 1];
+    for(int i = 0; i < 4; ++i)
+    {
+        printf("Writing file %d...\n", i);
+        char filename[100];
+        sprintf(filename, "/test/file%d.bin", i);
+        ramfs_open(filename, &fd);
+        uint64_t size = 0;
+        while(size < sizes[i])
+        {
+            int writeSize = min(sizes[i] - size, 65536);
+            ramfs_write(data1, writeSize, fd);
+            size += writeSize;
+        }
+        ramfs_close(fd);
+    }
+
+    printf("Listing contents of /test:\n");
+    char lsBuffer[100];
+    int len = ramfs_list("/test", lsBuffer, sizeof(lsBuffer) - 1);
+    lsBuffer[len] = '\0';
+    printf("%s\n", lsBuffer);
+
+
 
     printf("Done.");
 

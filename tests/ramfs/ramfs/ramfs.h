@@ -63,28 +63,20 @@ ramfs_err_t ramfs_open(const char *path, ramfs_fd_t *fdPtr);
 void ramfs_close(ramfs_fd_t fd);
 
 // Reads the given amount of bytes into the given buffer.
-int ramfs_read(void *buffer, int length, ramfs_fd_t fd);
+uint64_t ramfs_read(uint8_t *buffer, uint64_t length, ramfs_fd_t fd);
 
 // Writes the given amount of bytes.
-int ramfs_write(void *buffer, int length, ramfs_fd_t fd);
+uint64_t ramfs_write(uint8_t *buffer, uint64_t length, ramfs_fd_t fd);
 
 // Returns the current position in the file.
-int ramfs_tell(ramfs_fd_t fd);
+uint64_t ramfs_tell(ramfs_fd_t fd);
 
 // Moves to the given position in the file.
-void ramfs_seek(int position, ramfs_fd_t fd);
+void ramfs_seek(uint64_t position, ramfs_fd_t fd);
 
 // Creates a new directory at the given path.
 ramfs_err_t ramfs_create_directory(const char *path, const char *name);
 
-
-
-
-
-
-
-// Dumps the entire RAM file system tree into the given string buffer.
-void ramfs_dump(char *buffer, int bufferLength);
-
-// Returns the size of the string buffer that is needed to write the entire tree.
-int ramfs_dump_get_buffer_size();
+// Retrieves a list of the contents of the given directory.
+// Note: This function does NOT append a terminating 0-byte.
+int ramfs_list(const char *path, char *buffer, int bufferLength);

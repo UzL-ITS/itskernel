@@ -1,32 +1,42 @@
 
 #include <proc/syscalls.h>
 
-ramfs_err_t sys_create_directory(const char *path, const char *name)
+ramfs_err_t sys_fs_open(const char *path, ramfs_fd_t *fdPtr)
+{
+	return ramfs_open(path, fdPtr);
+}
+
+void sys_fs_close(ramfs_fd_t fd)
+{
+	ramfs_close(fd);
+}
+
+uint64_t sys_fs_read(uint8_t *buffer, uint64_t length, ramfs_fd_t fd)
+{
+	return ramfs_read(buffer, length, fd);
+}
+
+uint64_t sys_fs_write(uint8_t *buffer, uint64_t length, ramfs_fd_t fd)
+{
+	return ramfs_write(buffer, length, fd);
+}
+
+uint64_t sys_fs_tell(ramfs_fd_t fd)
+{
+	return ramfs_tell(fd);
+}
+
+void sys_fs_seek(uint64_t position, ramfs_fd_t fd)
+{
+	ramfs_seek(position, fd);
+}
+
+ramfs_err_t sys_fs_create_directory(const char *path, const char *name)
 {
 	return ramfs_create_directory(path, name);
 }
 
-ramfs_err_t sys_create_file(const char *path, const char *name, void *data, int dataLength)
+int sys_fs_list(const char *path, char *buffer, int bufferLength)
 {
-	return ramfs_create_file(path, name, data, dataLength);
-}
-
-ramfs_err_t sys_get_file(const char *path, void *dataBuffer, int dataBufferLength)
-{
-	return ramfs_get_file(path, dataBuffer, dataBufferLength);
-}
-
-ramfs_err_t sys_get_file_info(const char *path, int *dataLengthPtr)
-{
-	return ramfs_get_file_info(path, dataLengthPtr);
-}
-
-void sys_dump_files(char *buffer, int bufferLength)
-{
-	ramfs_dump(buffer, bufferLength);
-}
-
-int sys_dump_files_get_buffer_size()
-{
-	return ramfs_dump_get_buffer_size();
+	return ramfs_list(path, buffer, bufferLength);
 }

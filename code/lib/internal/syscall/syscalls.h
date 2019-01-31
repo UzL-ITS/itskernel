@@ -91,24 +91,6 @@ void sys_info(int infoId, uint8_t *buffer);
 // Sets the core the current thread shall be run on.
 void sys_set_affinity(int coreId);
 
-// Creates a new directory under the given path.
-ramfs_err_t sys_create_directory(const char *path, const char *name);
-
-// Creates a new file at the given path.
-ramfs_err_t sys_create_file(const char *path, const char *name, void *data, int dataLength);
-
-// Returns the metadata of the given file.
-ramfs_err_t sys_get_file_info(const char *path, int *dataLengthPtr);
-
-// Returns the contents of the given file.
-ramfs_err_t sys_get_file(const char *path, void *dataBuffer, int dataBufferLength);
-
-// Dumps the entire file system tree into the given string buffer.
-void sys_dump_files(char *buffer, int bufferLength);
-
-// Returns the size of the string buffer that is needed to write the entire tree.
-int sys_dump_files_get_buffer_size();
-
 // Resolves the underlying physical address of the given virtual address.
 uint64_t sys_virt_to_phy(uint64_t addr);
 
@@ -116,4 +98,31 @@ uint64_t sys_virt_to_phy(uint64_t addr);
 void sys_reset();
 
 // Custom system call for experiments.
+// Note: This system call must not change the current thread or address space!
 uint8_t *sys_custom(int param);
+
+// Opens the given file and stores the descriptor in the given variable.
+// If the file does not exist, it is created.
+ramfs_err_t sys_fs_open(const char *path, ramfs_fd_t *fdPtr);
+
+// Closes the given file.
+void sys_fs_close(ramfs_fd_t fd);
+
+// Reads the given amount of bytes into the given buffer.
+uint64_t sys_fs_read(uint8_t *buffer, uint64_t length, ramfs_fd_t fd);
+
+// Writes the given amount of bytes.
+uint64_t sys_fs_write(uint8_t *buffer, uint64_t length, ramfs_fd_t fd);
+
+// Returns the current position in the file.
+uint64_t sys_fs_tell(ramfs_fd_t fd);
+
+// Moves to the given position in the file.
+void sys_fs_seek(uint64_t position, ramfs_fd_t fd);
+
+// Creates a new directory at the given path.
+ramfs_err_t sys_fs_create_directory(const char *path, const char *name);
+
+// Retrieves a list of the contents of the given directory.
+// Note: This function does NOT append a terminating 0-byte.
+int sys_fs_list(const char *path, char *buffer, int bufferLength);
