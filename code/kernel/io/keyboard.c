@@ -34,10 +34,7 @@ static bool pollWorkaround = false;
 static void _handle_key_press(cpu_state_t *UNUSED_state)
 {
 	// Retrieve scan code
-	// TODO add support for extended scan codes (E0)
-	// TODO add support for modifiers -> add fields to messages
 	uint8_t scanCode = inb(PS2_DATA_PORT);
-	
 	trace_printf("Scan code 0x%02x\n", scanCode);
 	
 	// Check scan code type

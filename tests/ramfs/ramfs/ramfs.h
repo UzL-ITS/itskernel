@@ -45,6 +45,20 @@ typedef enum
 
 } ramfs_err_t;
 
+// The different seek starting positions.
+typedef enum
+{
+    // Seek starting at the file begin.
+    RAMFS_SEEK_START,
+
+    // Seek starting at current position.
+    RAMFS_SEEK_CURRENT,
+
+    // Seek starting at file end.
+    RAMFS_SEEK_END
+
+} ramfs_seek_whence_t;
+
 // Pointer to an opened file.
 typedef int ramfs_fd_t;
 #define RAMFS_FD_INVALID -1
@@ -72,10 +86,13 @@ uint64_t ramfs_write(uint8_t *buffer, uint64_t length, ramfs_fd_t fd);
 uint64_t ramfs_tell(ramfs_fd_t fd);
 
 // Moves to the given position in the file.
-void ramfs_seek(uint64_t position, ramfs_fd_t fd);
+void ramfs_seek(int64_t offset, ramfs_seek_whence_t whence, ramfs_fd_t fd);
 
 // Creates a new directory at the given path.
 ramfs_err_t ramfs_create_directory(const char *path, const char *name);
+
+// Tries to access the directory at the given path and returns suitable error codes (RAMFS_ERR_DIRECTORY_EXISTS vs. RAMFS_ERR_DIRECTORY_DOES_NOT_EXIST).
+ramfs_err_t ramfs_test_directory(const char *path, const char *name);
 
 // Retrieves a list of the contents of the given directory.
 // Note: This function does NOT append a terminating 0-byte.

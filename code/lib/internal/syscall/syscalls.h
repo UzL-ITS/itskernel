@@ -118,10 +118,13 @@ uint64_t sys_fs_write(uint8_t *buffer, uint64_t length, ramfs_fd_t fd);
 uint64_t sys_fs_tell(ramfs_fd_t fd);
 
 // Moves to the given position in the file.
-void sys_fs_seek(uint64_t position, ramfs_fd_t fd);
+void sys_fs_seek(int64_t offset, ramfs_seek_whence_t whence, ramfs_fd_t fd);
 
 // Creates a new directory at the given path.
 ramfs_err_t sys_fs_create_directory(const char *path, const char *name);
+
+// Tries to access the directory at the given path and returns suitable error codes (RAMFS_ERR_DIRECTORY_EXISTS vs. RAMFS_ERR_DIRECTORY_DOES_NOT_EXIST).
+ramfs_err_t sys_fs_test_directory(const char *path, const char *name);
 
 // Retrieves a list of the contents of the given directory.
 // Note: This function does NOT append a terminating 0-byte.

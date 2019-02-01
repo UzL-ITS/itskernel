@@ -38,12 +38,13 @@ int main()
     printf("fwrite 2: %d\n", ramfs_write(data1 + 100, 9000, fd));
     printf("fwrite 3: %d\n", ramfs_write(data1 + 9100, 900, fd));
     printf("ftell 1: %d\n", ramfs_tell(fd));
-    ramfs_seek(9900, fd);
+    ramfs_seek(-100, RAMFS_SEEK_CURRENT, fd);
+    printf("ftell 2: %d\n", ramfs_tell(fd));
     printf("fwrite 4: %d\n", ramfs_write(data2, 5000, fd));
 
     int fileLen = ramfs_tell(fd);
-    printf("ftell 2: %d\n", fileLen);
-    ramfs_seek(0, fd);
+    printf("ftell 3: %d\n", fileLen);
+    ramfs_seek(0, RAMFS_SEEK_START, fd);
     uint8_t *verif = malloc(fileLen);
     printf("fread 1: %d\n", ramfs_read(verif, fileLen, fd));
     for(int i = 0; i < 9900; ++i)
@@ -82,7 +83,7 @@ int main()
     }
 
     printf("Listing contents of /test:\n");
-    char lsBuffer[100];
+    char lsBuffer[1000];
     int len = ramfs_list("/test", lsBuffer, sizeof(lsBuffer) - 1);
     lsBuffer[len] = '\0';
     printf("%s\n", lsBuffer);

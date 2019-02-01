@@ -261,6 +261,8 @@ static ramfs_err_t get_file_entry(const char *path, const char **fileNameStartPt
 ramfs_err_t ramfs_create_directory(const char *path, const char *name)
 {
     // The directory name must not contain any reserved characters
+    if(*name == '.' && *(name + 1) == '.')
+        return RAMFS_ERR_ILLEGAL_CHARACTER;
     for(const char *n = name; *n; ++n)
         if(*n == '/')
             return RAMFS_ERR_ILLEGAL_CHARACTER;
@@ -288,6 +290,7 @@ ramfs_err_t ramfs_create_directory(const char *path, const char *name)
     // Create directory
     ramfs_directory_t *directory = (ramfs_directory_t *)malloc(sizeof(ramfs_directory_t));
     strncpy(directory->name, name, sizeof(directory->name));
+    directory->name[sizeof(directory->name) - 1] = '\0';
     directory->next = 0;
     directory->firstChild = 0;
     directory->lastChild = 0;
@@ -305,6 +308,40 @@ ramfs_err_t ramfs_create_directory(const char *path, const char *name)
     // Done
     release_lock();
     return RAMFS_ERR_OK;
+}
+
+ramfs_err_t ramfs_test_directory(const char *path, const char *name)
+{
+    // The directory name must not contain any reserved characters
+    if(*name == '.' && *(name + 1) == '.')
+        return RAMFS_ERR_ILLEGAL_CHARACTER;
+    for(const char *n = name; *n; ++n)
+        if(*n == '/')
+            return RAMFS_ERR_ILLEGAL_CHARACTER;
+
+    acquire_lock();
+
+    // Get sub directory where the new directory shall be placed in
+    ramfs_directory_t *parentDirectory;
+    int pathLength = strlen(path);
+    ramfs_err_t err = get_directory(path, pathLength, &parentDirectory);
+    if(err != RAMFS_ERR_OK)
+    {
+        release_lock();
+        return err;
+    }
+
+    // Check whether directory exists already
+    for(ramfs_directory_t *subDir = parentDirectory->firstChild; subDir; subDir = subDir->next)
+        if(strcmp(subDir->name, name) == 0)
+        {
+            release_lock();
+            return RAMFS_ERR_DIRECTORY_EXISTS;
+        }
+
+    // Directory does not exist yet
+    release_lock();
+    return RAMFS_ERR_DIRECTORY_DOES_NOT_EXIST;
 }
 
 static ramfs_err_t create_file(ramfs_directory_t *directory, const char *name, ramfs_file_t **fileEntryPtr)
@@ -330,6 +367,7 @@ static ramfs_err_t create_file(ramfs_directory_t *directory, const char *name, r
     // Create file
     ramfs_file_t *file = (ramfs_file_t *)malloc(sizeof(ramfs_file_t));
     strncpy(file->name, name, sizeof(file->name));
+    file->name[sizeof(file->name) - 1] = '\0';
     file->isOpen = false;
     file->firstBlock = firstBlockEntry;
     file->lastBlock = firstBlockEntry;
@@ -542,14 +580,21 @@ uint64_t ramfs_tell(ramfs_fd_t fd)
     return fileHandles[fd].position;
 }
 
-void ramfs_seek(uint64_t position, ramfs_fd_t fd)
+void ramfs_seek(int64_t offset, ramfs_seek_whence_t whence, ramfs_fd_t fd)
 {
     // Validate handle
     if(fd < 0 || fd >= FILE_HANDLE_COUNT || !fileHandles[fd].active)
         return;
 
-    // Check whether position is valid
+    // Calculate target position
     ramfs_file_handle_t *handle = &fileHandles[fd];
+    uint64_t position = 0;
+    if(whence == RAMFS_SEEK_START && offset >= 0)
+        position = offset;
+    else if(whence == RAMFS_SEEK_CURRENT && (offset >= 0 || handle->position >= -offset))
+        position = (uint64_t)(handle->position + offset);
+    else if(whence == RAMFS_SEEK_END && offset <= 0 && handle->file->dataLength - 1 >= -offset)
+        position = handle->file->dataLength - 1 + offset;
     if(position >= handle->file->dataLength)
         position = handle->file->dataLength - 1;
 

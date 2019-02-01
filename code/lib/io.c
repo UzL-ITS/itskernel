@@ -94,42 +94,56 @@ char *getline()
 	return 0;
 }
 
+fs_err_t fopen(const char *path, fs_fd_t *fdPtr)
+{
+	// Call system function
+	return sys_fs_open(path, fdPtr);
+}
+
+void fclose(fs_fd_t fd)
+{
+	// Call system function
+	sys_fs_close(fd);
+}
+
+uint64_t fread(uint8_t *buffer, uint64_t length, fs_fd_t fd)
+{
+	// Call system function
+	return sys_fs_read(buffer, length, fd);
+}
+
+uint64_t fwrite(uint8_t *buffer, uint64_t length, fs_fd_t fd)
+{
+	// Call system function
+	return sys_fs_write(buffer, length, fd);
+}
+
+uint64_t ftell(fs_fd_t fd)
+{
+	// Call system function
+	return sys_fs_tell(fd);
+}
+
+void fseek(int64_t offset, fs_seek_whence_t whence, fs_fd_t fd)
+{
+	// Call system function
+	sys_fs_seek(offset, whence, fd);
+}
+
 fs_err_t create_directory(const char *path, const char *name)
 {
 	// Call system function
-	return sys_create_directory(path, name);
+	return sys_fs_create_directory(path, name);
 }
 
-fs_err_t create_file(const char *path, const char *name, void *data, int dataLength)
+fs_err_t test_directory(const char *path, const char *name)
 {
 	// Call system function
-	return sys_create_file(path, name, data, dataLength);
+	return sys_fs_test_directory(path, name);
 }
 
-fs_err_t get_file(const char *path, void **dataPtr, int *dataLengthPtr)
+int flist(const char *path, char *buffer, int bufferLength)
 {
-	// Get file size
-	fs_err_t err = sys_get_file_info(path, dataLengthPtr);
-	if(err != RAMFS_ERR_OK)
-		return err;
-		
-	// Allocate memory for file contents
-	*dataPtr = malloc(*dataLengthPtr);
-	
-	// Get file contents
-	return sys_get_file(path, *dataPtr, *dataLengthPtr);
-}
-
-void dump_files()
-{
-	// Allocate buffer
-	int lsBufferSize = sys_dump_files_get_buffer_size();
-	char *lsBuffer = malloc(lsBufferSize);
-	
-	// Retrieve and print file system tree
-	sys_dump_files(lsBuffer, lsBufferSize);
-	printf("%s\n", lsBuffer);
-	
-	// Done
-	free(lsBuffer);
+	// Call system function
+	return sys_fs_list(path, buffer, bufferLength);
 }

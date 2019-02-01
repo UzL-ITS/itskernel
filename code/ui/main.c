@@ -20,6 +20,9 @@ Kernel UI process main file.
 
 /* VARIABLES */
 
+// Colors.
+const color_t COLOR_CURRENT_DIRECTORY = { 0, 200, 0 };
+
 // Network configuration.
 //*
 static char serverIpAddress[] = "141.83.62.232";
@@ -105,71 +108,6 @@ static void victim(void *args)
 	printf_locked("MemJam time: %d\n", (int)sum);
 }
 
-
-
-
-
-
-
-
-/***** STFWD *******/
-
-
-extern uint64_t measure(uint8_t *testBuffer);
-
-#define ROUNDS 10000
-#define PAGE_COUNT 2048
-#define PAGE_SIZE 4096
-#define WINDOW 32
-
-void test_func(void *args)
-{
-	set_thread_affinity(*((int *)args));
-	
-	// TODO alloc contiguous
-	
-	printf_locked("malloc 1...\n");
-	uint8_t *testBuffer = (uint8_t *)malloc(PAGE_COUNT * PAGE_SIZE);
-	memset(testBuffer, 0, PAGE_COUNT * PAGE_SIZE);
-	for(int p = 0; p < PAGE_COUNT / 8; ++p)
-	{
-		printf_locked("%4d    ", 8 * p);
-		for(int i = 0; i < 8; ++i)
-			printf_locked("%012x ", sys_virt_to_phy((uint64_t)&testBuffer[(8 * p + i) * PAGE_SIZE]));
-		printf_locked("\n");
-	}
-	
-	printf_locked("malloc 2...\n");
-	uint16_t *measurementBuffer = (uint16_t *)malloc(PAGE_COUNT * sizeof(uint16_t));
-	memset(measurementBuffer, 0, PAGE_COUNT * sizeof(uint16_t));
-	
-	printf_locked("measure...\n");
-	for(int p = WINDOW; p < PAGE_COUNT; ++p)
-	{
-		uint64_t total = 0;
-		
-		for(int r = 0; r < ROUNDS; ++r)		
-		{
-			// Stores
-			for(int i = p - WINDOW; i <= p; ++i)
-				testBuffer[i * PAGE_SIZE] = 0;
-			
-			// Measuring load
-			total += measure(testBuffer);
-		}
-		
-		measurementBuffer[p] = (uint16_t)(total / ROUNDS);
-	}
-
-	for(int p = 0; p < PAGE_COUNT; ++p)
-		if(measurementBuffer[p] > 250)
-			printf_locked("%4d    %p -> %p    %u\n", p,  &testBuffer[p * PAGE_SIZE], sys_virt_to_phy((uint64_t)&testBuffer[p * PAGE_SIZE]), measurementBuffer[p]);
-
-	printf_locked("free...\n");
-	free(testBuffer);
-	free(measurementBuffer);
-}
-
 void main()
 {
 	// Initialize library
@@ -189,10 +127,13 @@ void main()
 	
 	// Create file system
 	printf_locked("Creating RAM file system...");
-	if(create_directory("/", "in") != RAMFS_ERR_OK)
+	if(create_directory("/", "in") != FS_ERR_OK)
 		printf_locked("failed\n");
 	else
 		printf_locked("OK\n");
+	
+	// Set current directory
+	char currentDirectory[1024] = "/";
 	
 	// Start LWIP thread
 	printf_locked("Starting LWIP thread...\n");
@@ -201,11 +142,16 @@ void main()
 	printf_locked("Thread started.\n");
 	
 	// Command loop
-	char lineBuffer[1000];
+	char buffer[16384]; // String buffer for arbitrary use
 	while(true)
 	{
-		// Print command line string
-		printf_locked("\n~$ ");
+		// Print prompt
+		terminal_set_front_color(COLOR_CURRENT_DIRECTORY);
+		printf_locked("\n%s", currentDirectory);
+		terminal_reset_colors();
+		printf_locked("$ ");
+		
+		// Read command
 		char *command = getline();
 		int argCount;
 		char **args = split_command_string(command, &argCount);
@@ -223,11 +169,13 @@ void main()
 			// Print help text
 			printf_locked("Supported commands:\n");
 			printf_locked("    lss                       List remote directory\n");
-			printf_locked("    ls                        List local file system tree\n");
-			printf_locked("    dl [file name]            Download file from server to /in directory\n");
-			printf_locked("    ul [file path]            Upload file to server\n");
-			printf_locked("    prefix [file name] [n]    Show first n bytes of the given file\n");
-			printf_locked("    start [file name]         Run the given ELF64 file as a new process\n");
+			printf_locked("    ls                        List current directory\n");
+			printf_locked("    cd <directory name>       Change to given directory\n");
+			printf_locked("    mkdir <directory name>    Create directory\n");
+			printf_locked("    dl <file name>            Download file from server to /in directory\n");
+			printf_locked("    ul <file path>            Upload file to server\n");
+			printf_locked("    prefix <file name> <n>    Show first n bytes of the given file\n");
+			printf_locked("    start <file name>         Run the given ELF64 file as a new process\n");
 			printf_locked("    sysinfo                   Print system information (e.g. CPU topology)\n");
 			printf_locked("    reboot                    Reset the CPU\n");
 		}
@@ -238,15 +186,15 @@ void main()
 			itslwip_send_string(tcpHandle, "ls\n", 3);
 			
 			// Receive file count
-			itslwip_receive_line(tcpHandle, lineBuffer, sizeof(lineBuffer));
-			int count = atoi(lineBuffer);
+			itslwip_receive_line(tcpHandle, buffer, sizeof(buffer));
+			int count = atoi(buffer);
 			printf_locked("Server has %d input files:\n", count);
 			
 			// Receive file list
 			for(int i = 0; i < count; ++i)
 			{
-				itslwip_receive_line(tcpHandle, lineBuffer, sizeof(lineBuffer));
-				printf_locked("    %s\n", lineBuffer);
+				itslwip_receive_line(tcpHandle, buffer, sizeof(buffer));
+				printf_locked("    %s\n", buffer);
 			}
 			
 			// Disconnect
@@ -255,8 +203,72 @@ void main()
 		}
 		else if(strcmp(args[0], "ls") == 0 || strcmp(args[0], "ll") == 0)
 		{
-			// Show file system tree
-			dump_files();
+			// Retrieve directory contents
+			int lsLength = flist(currentDirectory, buffer, sizeof(buffer) - 1);
+			buffer[lsLength] = '\0';
+			printf_locked("%s", buffer);
+		}
+		else if(strcmp(args[0], "cd") == 0)
+		{
+			// Get directory name
+			if(argCount < 2)
+				printf_locked("Missing argument.\n");
+			else
+			{
+				// Move one directory up?
+				int currentDirectoryStringLength = strlen(currentDirectory);
+				int nextDirectoryNameLength = strlen(args[1]);
+				if(nextDirectoryNameLength >= 2 && args[1][0] == '.' && args[1][1] == '.' && currentDirectoryStringLength > 1)
+				{
+					// Go back to previous slash
+					int prevSlashPos;
+					for(prevSlashPos = currentDirectoryStringLength - 2; prevSlashPos > 0; --prevSlashPos)
+						if(currentDirectory[prevSlashPos] == '/')
+							break;
+					
+					// Add terminating zero after slash
+					currentDirectory[prevSlashPos + 1] = '\0';
+				}
+				else
+				{
+					// Remove slashes from back of directory name, if there are any
+					while(args[1][nextDirectoryNameLength - 1] == '/')
+						args[1][--nextDirectoryNameLength] = '\0';
+					
+					// Check whether directory exists
+					if(test_directory(currentDirectory, args[1]) != FS_ERR_DIRECTORY_EXISTS)
+						printf_locked("Can not find specified directory.\n");
+					else
+					{
+						// Change into directory
+						if(currentDirectoryStringLength + nextDirectoryNameLength >= sizeof(currentDirectory) - 2)
+							printf_locked("Could not change into directory: Path length exceeds buffer.\n");
+						else
+						{
+							// Add name
+							strncpy(&currentDirectory[currentDirectoryStringLength], args[1], nextDirectoryNameLength);
+							currentDirectoryStringLength += nextDirectoryNameLength;
+							
+							// Append slash and terminating 0-byte
+							currentDirectory[currentDirectoryStringLength++] = '/';
+							currentDirectory[currentDirectoryStringLength++] = '\0';
+						}
+					}
+				}
+			}
+		}
+		else if(strcmp(args[0], "mkdir") == 0)
+		{
+			// Get directory name
+			if(argCount < 2)
+				printf_locked("Missing argument.\n");
+			else
+			{
+				// Try to create directory
+				fs_err_t err = create_directory(currentDirectory, args[1]);
+				if(err != FS_ERR_OK)
+					printf_locked("Can not create directory: %d.\n", err);
+			}
 		}
 		else if(strcmp(args[0], "dl") == 0)
 		{
@@ -443,17 +455,6 @@ void main()
 			// Reboot
 			printf_locked("Initiating reboot...\n");
 			sys_reset();
-		}
-		else if(strcmp(args[0], "test") == 0)
-		{
-			if(argCount < 2)
-				printf_locked("Missing argument.\n");
-			else
-			{
-				int core = atoi(args[1]);
-				printf_locked("Starting measurement on core %d...\n", core);
-				run_thread(test_func, &core, "measure");
-			}
 		}
 		else if(strcmp(args[0], "memjam") == 0)
 		{

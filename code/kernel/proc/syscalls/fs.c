@@ -26,14 +26,19 @@ uint64_t sys_fs_tell(ramfs_fd_t fd)
 	return ramfs_tell(fd);
 }
 
-void sys_fs_seek(uint64_t position, ramfs_fd_t fd)
+void sys_fs_seek(int64_t offset, ramfs_seek_whence_t whence, ramfs_fd_t fd)
 {
-	ramfs_seek(position, fd);
+	ramfs_seek(offset, whence, fd);
 }
 
 ramfs_err_t sys_fs_create_directory(const char *path, const char *name)
 {
 	return ramfs_create_directory(path, name);
+}
+
+ramfs_err_t sys_fs_test_directory(const char *path, const char *name)
+{
+	return ramfs_test_directory(path, name);
 }
 
 int sys_fs_list(const char *path, char *buffer, int bufferLength)
