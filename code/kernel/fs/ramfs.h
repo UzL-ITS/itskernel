@@ -1,3 +1,5 @@
+#pragma once
+
 /*
 ITS kernel RAM file system implementation.
 File and directory names are limited to 64 characters.
@@ -6,6 +8,7 @@ File and directory names are limited to 64 characters.
 /* INCLUDES */
 
 #include <stdint.h>
+#include <stdbool.h>
 
 
 /* TYPES */
@@ -70,8 +73,8 @@ typedef int ramfs_fd_t;
 void ramfs_init();
 
 // Opens the given file and stores the descriptor in the given variable.
-// If the file does not exist, it is created.
-ramfs_err_t ramfs_open(const char *path, ramfs_fd_t *fdPtr);
+// If the file does not exist and the "create" flag is set, it is created.
+ramfs_err_t ramfs_open(const char *path, ramfs_fd_t *fdPtr, bool create);
 
 // Closes the given file.
 void ramfs_close(ramfs_fd_t fd);

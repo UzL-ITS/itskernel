@@ -1,9 +1,9 @@
 
 #include <proc/syscalls.h>
 
-ramfs_err_t sys_fs_open(const char *path, ramfs_fd_t *fdPtr)
+ramfs_err_t sys_fs_open(const char *path, ramfs_fd_t *fdPtr, bool create)
 {
-	return ramfs_open(path, fdPtr);
+	return ramfs_open(path, fdPtr, create);
 }
 
 void sys_fs_close(ramfs_fd_t fd)

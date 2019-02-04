@@ -82,10 +82,11 @@ i219:
 	Programmierung ist im Wesentlichen dieselbe wie für ICH8 (für welches eine Dokumentation existiert)
 
 TODO Feature-Ideen:
-	Bilder in UserSpace-Terminal
-		Aktuellen Speicherstatus/Belegung abrufen und anzeigen
+	Aktuellen Speicherstatus/Belegung abrufen und anzeigen
 	Standard-Linux-Befehle
 	Kernel-Threads
 	Geziele Allokierung bestimmter phys. Adressen
 	Contiguous Allocation fixen
 	USB-Support -> PrettyOS
+	Prozessliste
+		Sauberes Cleanup beendeter Threads und Prozesse

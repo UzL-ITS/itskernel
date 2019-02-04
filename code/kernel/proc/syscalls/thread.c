@@ -9,6 +9,7 @@
 #include <trace/trace.h>
 #include <proc/elf64.h>
 #include <smp/cpu.h>
+#include <fs/ramfs.h>
 
 void sys_run_thread(uint64_t rip, const char *name)
 {
@@ -28,11 +29,26 @@ void sys_exit_thread(cpu_state_t *state)
 	// TODO clean up
 }
 
-bool sys_start_process(uint8_t *program, int programLength)
+bool sys_start_process(const char *programPath)
 {
-	// Copy program data into kernel memory
+	// Open process executable
+	ramfs_fd_t fd;
+	if(ramfs_open(programPath, &fd, false) != RAMFS_ERR_OK)
+		return false;
+	
+	// Retrieve file size
+	ramfs_seek(0, RAMFS_SEEK_END, fd);
+	uint64_t programLength = ramfs_tell(fd);
+	
+	// Copy executable to memory
+	ramfs_seek(0, RAMFS_SEEK_START, fd);
 	uint8_t *programKernelMem = malloc(programLength);
-	memcpy(programKernelMem, program, programLength);
+	if(ramfs_read(programKernelMem, programLength, fd) != programLength)
+	{
+		ramfs_close(fd);
+		return false;
+	}
+	ramfs_close(fd);
 	elf64_ehdr_t *elf = (elf64_ehdr_t *)programKernelMem;
 	
 	// Remember handle of current process
@@ -60,6 +76,11 @@ bool sys_start_process(uint8_t *program, int programLength)
 	
 	// Restore current process
 	proc_switch(currProc);
+	
+	// Free memory containing the program executable
+	free(programKernelMem);
+	
+	// Done
 	return true;
 }
 

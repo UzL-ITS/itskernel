@@ -13,12 +13,12 @@ ITS kernel standard library threading functionality.
 
 /* FUNCTIONS */
 
-bool start_process(uint8_t *program, int programLength)
+bool start_process(const char *programPath)
 {
 	// Sanity check
-	if(!program || programLength <= 0)
+	if(!programPath)
 		return false;
 	
 	// Do system call
-	return sys_start_process(program, programLength);
+	return sys_start_process(programPath);
 }

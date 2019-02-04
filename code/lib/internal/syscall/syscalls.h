@@ -69,8 +69,8 @@ void sys_run_thread(uint64_t rip, const char *name);
 // Exits the current thread.
 void sys_exit_thread();
 
-// Starts a new process based on the given ELF file data.
-bool sys_start_process(uint8_t *program, int programLength);
+// Runs the given executable in a new process.
+bool sys_start_process(const char *programPath);
 
 // Returns the amount of elapsed milliseconds since system start.
 uint64_t sys_get_elapsed_milliseconds();
@@ -102,8 +102,8 @@ void sys_reset();
 uint8_t *sys_custom(int param);
 
 // Opens the given file and stores the descriptor in the given variable.
-// If the file does not exist, it is created.
-ramfs_err_t sys_fs_open(const char *path, ramfs_fd_t *fdPtr);
+// If the file does not exist and the "create" flag is set, it is created.
+ramfs_err_t sys_fs_open(const char *path, ramfs_fd_t *fdPtr, bool create);
 
 // Closes the given file.
 void sys_fs_close(ramfs_fd_t fd);

@@ -85,8 +85,8 @@ void io_init(int lines);
 char *getline();
 
 // Opens the given file and stores the descriptor in the given variable.
-// If the file does not exist, it is created.
-fs_err_t fopen(const char *path, fs_fd_t *fdPtr);
+// If the file does not exist and the "create" flag is set, it is created.
+fs_err_t fopen(const char *path, fs_fd_t *fdPtr, bool create);
 
 // Closes the given file.
 void fclose(fs_fd_t fd);

@@ -305,8 +305,8 @@ void terminal_handle_navigation_key(vkey_t keyCode)
 void terminal_draw_rectangle(uint32_t width, uint32_t height, bool moveCursor)
 {	
 	// Enough space available?
-	int drawRow = currentRow + 1;
-	int rowCount = 1 + (height / ROW_HEIGHT);
+	uint32_t drawRow = currentRow + 1;
+	uint32_t rowCount = 1 + (height / ROW_HEIGHT);
 	if(drawRow + rowCount >= terminalRowCount)
 	{
 		// Do wrap around
@@ -327,8 +327,8 @@ void terminal_draw_rectangle(uint32_t width, uint32_t height, bool moveCursor)
 void terminal_draw(uint32_t *pixels, uint32_t width, uint32_t height, bool moveCursor)
 {
 	// Enough space available?
-	int drawRow = currentRow + 1;
-	int rowCount = 1 + (height / ROW_HEIGHT);
+	uint32_t drawRow = currentRow + 1;
+	uint32_t rowCount = 1 + (height / ROW_HEIGHT);
 	if(drawRow + rowCount >= terminalRowCount)
 	{
 		// Do wrap around

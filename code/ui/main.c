@@ -22,14 +22,15 @@ Kernel UI process main file.
 
 // Colors.
 const color_t COLOR_CURRENT_DIRECTORY = { 0, 200, 0 };
+const color_t COLOR_ERROR = { 200, 0, 0 };
 
 // Network configuration.
-//*
+/*
 static char serverIpAddress[] = "141.83.62.232";
 static char ipAddress[] = "141.83.62.44";
 static char subnetMask[] = "255.255.255.0";
 static char gatewayAddress[] = "141.83.62.1";
-/*
+/*/
 static char serverIpAddress[] = "192.168.21.1"; // VMware
 static char ipAddress[] = "192.168.21.10";
 static char subnetMask[] = "255.255.255.0";
@@ -72,10 +73,12 @@ static char **split_command_string(char *command, int *argumentCount)
 		args[i] = command;
 		*argumentCount = i + 1;
 		
-		// Skip argument content
+		// Skip argument content and potential new line characters
 		while(*command != ' ')
 			if(*command++ == '\0')
 				return args;
+			else if(*command == '\n')
+				*command++ = '\0';
 	}
 	return args;
 }
@@ -155,9 +158,12 @@ void main()
 		char *command = getline();
 		int argCount;
 		char **args = split_command_string(command, &argCount);
+		//for(int i = 0; i < argCount; ++i)
+		//	printf_locked("arg %d: >>%s<<\n", i, args[i]);
 		if(argCount < 1)
 		{
-			printf_locked("Please type a command.\n");
+			terminal_set_front_color(COLOR_ERROR);
+			printf_locked("Please type a command, or \"help\" for usage information.\n");
 			continue;
 		}
 		
@@ -167,17 +173,22 @@ void main()
 		else if(strcmp(args[0], "help") == 0)
 		{
 			// Print help text
-			printf_locked("Supported commands:\n");
-			printf_locked("    lss                       List remote directory\n");
-			printf_locked("    ls                        List current directory\n");
-			printf_locked("    cd <directory name>       Change to given directory\n");
-			printf_locked("    mkdir <directory name>    Create directory\n");
-			printf_locked("    dl <file name>            Download file from server to /in directory\n");
-			printf_locked("    ul <file path>            Upload file to server\n");
-			printf_locked("    prefix <file name> <n>    Show first n bytes of the given file\n");
-			printf_locked("    start <file name>         Run the given ELF64 file as a new process\n");
-			printf_locked("    sysinfo                   Print system information (e.g. CPU topology)\n");
-			printf_locked("    reboot                    Reset the CPU\n");
+			printf_locked
+			(
+				"Supported commands:\n"
+				"    lss                           List remote directory\n"
+				"    ls                            List current directory\n"
+				"    cd <directory name>           Change to given directory\n"
+				"    mkdir <directory name>        Create directory\n"
+				"    dl <file name>                Download file from server to /in directory\n"
+				"    ul <file path>                Upload file to server\n"
+				"    cat <file path>               Print contents of given file\n"
+				"    start <file path>             Run the given ELF64 file as a new process\n"
+				"    sysinfo                       Print system information (e.g. CPU topology)\n"
+				"    reboot                        Reset the CPU\n"
+				"\n"
+				"Note: File and directory names can contain arbitrary characters, except spaces and slashes.\n"
+			);
 		}
 		else if(strcmp(args[0], "lss") == 0)
 		{
@@ -212,7 +223,10 @@ void main()
 		{
 			// Get directory name
 			if(argCount < 2)
+			{
+				terminal_set_front_color(COLOR_ERROR);
 				printf_locked("Missing argument.\n");
+			}
 			else
 			{
 				// Move one directory up?
@@ -237,12 +251,18 @@ void main()
 					
 					// Check whether directory exists
 					if(test_directory(currentDirectory, args[1]) != FS_ERR_DIRECTORY_EXISTS)
+					{
+						terminal_set_front_color(COLOR_ERROR);
 						printf_locked("Can not find specified directory.\n");
+					}
 					else
 					{
 						// Change into directory
-						if(currentDirectoryStringLength + nextDirectoryNameLength >= sizeof(currentDirectory) - 2)
+						if(currentDirectoryStringLength + nextDirectoryNameLength >= (int)sizeof(currentDirectory) - 2)
+						{
+							terminal_set_front_color(COLOR_ERROR);
 							printf_locked("Could not change into directory: Path length exceeds buffer.\n");
+						}
 						else
 						{
 							// Add name
@@ -261,35 +281,45 @@ void main()
 		{
 			// Get directory name
 			if(argCount < 2)
+			{
+				terminal_set_front_color(COLOR_ERROR);
 				printf_locked("Missing argument.\n");
+			}
 			else
 			{
 				// Try to create directory
 				fs_err_t err = create_directory(currentDirectory, args[1]);
 				if(err != FS_ERR_OK)
+				{
+					terminal_set_front_color(COLOR_ERROR);
 					printf_locked("Can not create directory: %d.\n", err);
+				}
 			}
 		}
 		else if(strcmp(args[0], "dl") == 0)
 		{
 			// Get file name
 			if(argCount < 2)
+			{
+				terminal_set_front_color(COLOR_ERROR);
 				printf_locked("Missing argument.\n");
+			}
 			else
 			{
 				int filenameLength = strlen(args[1]);
-				char *filename = (char *)malloc(filenameLength + 1);
-				strncpy(filename, args[1], filenameLength);
-				filename[filenameLength] = '\n';
+				char *filename = (char *)malloc(4 + filenameLength + 1);
+				strncpy(filename, "/in/", 4);
+				strncpy(&filename[4], args[1], filenameLength);
+				filename[4 + filenameLength] = '\n';
 				
 				// Connect to server and send command
 				tcp_handle_t tcpHandle = itslwip_connect(serverIpAddress, 17571);
 				itslwip_send_string(tcpHandle, "sendin\n", 7);
-				itslwip_send_string(tcpHandle, filename, filenameLength + 1);
+				itslwip_send_string(tcpHandle, &filename[4], filenameLength + 1);
 				
 				// Receive file size
-				itslwip_receive_line(tcpHandle, lineBuffer, sizeof(lineBuffer));
-				int fileSize = atoi(lineBuffer);
+				itslwip_receive_line(tcpHandle, buffer, sizeof(buffer));
+				int fileSize = atoi(buffer);
 				printf_locked("File size: %d bytes\n", fileSize);
 				
 				// Receive file data
@@ -297,9 +327,27 @@ void main()
 				itslwip_receive_data(tcpHandle, fileData, fileSize);
 				
 				// Store file
-				fs_err_t err = create_file("/in", args[1], fileData, fileSize);
-				if(err != RAMFS_ERR_OK)
-					printf_locked("Error saving received file: %d.\n", err);
+				fs_fd_t fd;
+				filename[4 + filenameLength] = '\0';
+				printf_locked("Storing downloaded data in %s...\n", filename);
+				fs_err_t err = fopen(filename, &fd, true);
+				if(err != FS_ERR_OK)	
+				{
+					terminal_set_front_color(COLOR_ERROR);
+					printf_locked("Error opening handle for writing received file: %d.\n", err);
+				}
+				else
+				{
+					// Write data
+					if((int)fwrite(fileData, fileSize, fd) != fileSize)
+					{
+						terminal_set_front_color(COLOR_ERROR);
+						printf_locked("Error storing downloaded data.\n");
+					}
+					
+					// Done
+					fclose(fd);
+				}
 				
 				// Disconnect
 				itslwip_send_string(tcpHandle, "exit\n", 5);
@@ -312,27 +360,59 @@ void main()
 		{
 			// Check parameters
 			if(argCount < 2)
+			{
+				terminal_set_front_color(COLOR_ERROR);
 				printf_locked("Missing argument.\n");
+			}
 			else
 			{
-				// Check whether file exists
-				int fileSize;
-				uint8_t *fileData;
-				fs_err_t err = get_file(args[1], (void **)&fileData, &fileSize);
-				if(err != RAMFS_ERR_OK)
-					printf_locked("Could not read file contents: %d\n", err);
+				// Absolute or relative path?
+				int pathLength = strlen(args[1]);
+				if(pathLength >= 1 && args[1][0] == '/')
+				{
+					// Use argument as entire path
+					strncpy(buffer, args[1], pathLength);
+					buffer[pathLength] = '\0';
+				}
 				else
 				{
+					// Concat current directory and given path
+					int currentDirectoryStringLength = strlen(currentDirectory);
+					strncpy(buffer, currentDirectory, currentDirectoryStringLength);
+					strncpy(&buffer[currentDirectoryStringLength], args[1], pathLength);
+					buffer[currentDirectoryStringLength + pathLength] = '\0';
+				}
+				
+				// Open file
+				fs_fd_t fd;
+				fs_err_t err = fopen(buffer, &fd, false);
+				if(err != FS_ERR_OK)
+				{
+					terminal_set_front_color(COLOR_ERROR);
+					printf_locked("Could not open file: %d\n", err);
+				}
+				else
+				{
+					// Retrieve file size
+					fseek(0, FS_SEEK_END, fd);
+					uint64_t fileSize = ftell(fd);
+					
+					// Retrieve file contents
+					uint8_t *fileData = malloc(fileSize);
+					fseek(0, FS_SEEK_START, fd);
+					fread(fileData, fileSize, fd);
+					fclose(fd);
+					
 					// Split path to get file name
 					int filenameStartIndex;
-					int pathLength = strlen(args[1]);
+					int pathLength = strlen(buffer);
 					for(filenameStartIndex = pathLength - 1; filenameStartIndex > 0; --filenameStartIndex)
-						if(args[1][filenameStartIndex - 1] == '/')
+						if(buffer[filenameStartIndex - 1] == '/')
 							break;
 					int filenameLength = pathLength - filenameStartIndex;
-					printf("File name is '%s' (length %d)\n", &args[1][filenameStartIndex], filenameLength);
+					printf("File name is '%s' (length %d)\n", &buffer[filenameStartIndex], filenameLength);
 					char filenameBuffer[65]; // Maximum file name length and new line character
-					strncpy(filenameBuffer, &args[1][filenameStartIndex], filenameLength);
+					strncpy(filenameBuffer, &buffer[filenameStartIndex], filenameLength);
 					filenameBuffer[filenameLength] = '\n';
 					
 					// Connect to server and send command including file name
@@ -342,7 +422,7 @@ void main()
 					
 					// Send file size
 					char fileSizeBuffer[11];
-					itoa(fileSize, fileSizeBuffer, 10);
+					itoa((int)fileSize, fileSizeBuffer, 10);
 					int fileSizeLength = strlen(fileSizeBuffer);
 					fileSizeBuffer[fileSizeLength] = '\n';
 					itslwip_send_string(tcpHandle, fileSizeBuffer, fileSizeLength + 1);
@@ -357,49 +437,113 @@ void main()
 				}
 			}
 		}
-		else if(strcmp(args[0], "prefix") == 0)
+		else if(strcmp(args[0], "cat") == 0)
 		{
-			// Load file
-			if(argCount < 3)
+			// Check arguments
+			if(argCount < 2)
+			{
+				terminal_set_front_color(COLOR_ERROR);
 				printf_locked("Missing argument.\n");
+			}
 			else
 			{
-				uint8_t *fileData;
-				int fileLength;
-				if(get_file(args[1], (void **)&fileData, &fileLength) == RAMFS_ERR_OK)
+				// Absolute or relative path?
+				int pathLength = strlen(args[1]);
+				if(pathLength >= 1 && args[1][0] == '/')
 				{
-					// Print first byte
-					int dumpLength = atoi(args[2]);
-					if(dumpLength > fileLength)
-						dumpLength = fileLength;
-					for(int i = 0; i < dumpLength; ++i)
-						printf_locked("%c", fileData[i]);
-					free(fileData);
+					// Use argument as entire path
+					strncpy(buffer, args[1], pathLength);
+					buffer[pathLength] = '\0';
 				}
 				else
-					printf_locked("File not found.\n");
+				{
+					// Concat current directory and given path
+					int currentDirectoryStringLength = strlen(currentDirectory);
+					strncpy(buffer, currentDirectory, currentDirectoryStringLength);
+					strncpy(&buffer[currentDirectoryStringLength], args[1], pathLength);
+					buffer[currentDirectoryStringLength + pathLength] = '\0';
+				}
+				
+				// Open file
+				fs_fd_t fd;
+				fs_err_t err = fopen(buffer, &fd, false);
+				if(err != FS_ERR_OK)
+				{
+					terminal_set_front_color(COLOR_ERROR);
+					printf_locked("Could not open file: %d\n", err);
+				}
+				else
+				{
+					// Read file until end is reached
+					int bytesRead;
+					while((bytesRead = (int)fread((uint8_t *)buffer, sizeof(buffer) - 1, fd)) > 0)
+					{
+						// Mask non-printable characters
+						for(char *bufferPtr = &buffer[bytesRead - 1]; bufferPtr >= &buffer[0]; --bufferPtr)
+						{
+							char c = *bufferPtr;
+							if(!((c >= 0x20 && c < 0x7F) || c == '\n' || c == '\r'))
+								*bufferPtr = '?';
+						}
+						
+						// Print contents
+						buffer[bytesRead] = '\0';
+						printf_locked("%s", buffer);
+					}
+					printf_locked("\n");
+					
+					// Done
+					fclose(fd);
+				}
 			}
 		}
 		else if(strcmp(args[0], "start") == 0)
 		{
 			// Load program file
 			if(argCount < 2)
+			{
+				terminal_set_front_color(COLOR_ERROR);
 				printf_locked("Missing argument.\n");
+			}
 			else
 			{
-				uint8_t *elfData;
-				int elfLength;
-				if(get_file(args[1], (void **)&elfData, &elfLength) == RAMFS_ERR_OK)
+				// Absolute or relative path?
+				int pathLength = strlen(args[1]);
+				if(pathLength >= 1 && args[1][0] == '/')
 				{
-					// Try to start process
+					// Use argument as entire path
+					strncpy(buffer, args[1], pathLength);
+					buffer[pathLength] = '\0';
+				}
+				else
+				{
+					// Concat current directory and given path
+					int currentDirectoryStringLength = strlen(currentDirectory);
+					strncpy(buffer, currentDirectory, currentDirectoryStringLength);
+					strncpy(&buffer[currentDirectoryStringLength], args[1], pathLength);
+					buffer[currentDirectoryStringLength + pathLength] = '\0';
+				}
+				
+				// Check whether program file exists
+				fs_fd_t fd;
+				fs_err_t err = fopen(buffer, &fd, false);
+				if(err != FS_ERR_OK)
+				{
+					terminal_set_front_color(COLOR_ERROR);
+					printf_locked("Could not open executable file: %d\n", err);
+				}
+				else
+				{
+					// Check successful
+					fclose(fd);
+				
+					// Start process
 					printf_locked("Starting process...");
-					if(start_process(elfData, elfLength))
+					if(start_process(buffer))
 						printf_locked("OK\n");
 					else
 						printf_locked("failed\n");
 				}
-				else
-					printf_locked("Program file not found.\n");
 			}
 		}
 		else if(strcmp(args[0], "arp") == 0)
@@ -450,6 +594,28 @@ void main()
 			// Done
 			free(topologyBuffer);
 		}
+		else if(strcmp(args[0], "memory") == 0)
+		{
+			if(argCount < 2)
+			{
+				
+				
+				// Print help text for sub commands
+				printf_locked("Supported commands:\n");
+				printf_locked("    storemap [file name]      Generate map of physical memory and store it in the given file\n");
+				printf_locked("    showmap [file name]       Render map of physical memory\n");
+				
+				
+			}
+			else if(strcmp(args[1], "storemap") == 0)
+			{
+				
+			}
+			else if(strcmp(args[1], "showmap") == 0)
+			{
+				
+			}
+		}
 		else if(strcmp(args[0], "reboot") == 0)
 		{
 			// Reboot
@@ -459,7 +625,10 @@ void main()
 		else if(strcmp(args[0], "memjam") == 0)
 		{
 			if(argCount < 4)
+			{
+				terminal_set_front_color(COLOR_ERROR);
 				printf_locked("Missing argument(s). Usage [attacker core] [victim#1 core] [victim#2 core]\n");
+			}
 			else
 			{
 				int coreAttacker = atoi(args[1]);
@@ -484,7 +653,10 @@ void main()
 		else if(strcmp(args[0], "scramble") == 0)
 		{
 			if(argCount < 2)
+			{
+				terminal_set_front_color(COLOR_ERROR);
 				printf_locked("Missing argument.\n");
+			}
 			else
 			{
 				int mode = atoi(args[1]);
@@ -494,7 +666,10 @@ void main()
 			}
 		}
 		else
+		{
+			terminal_set_front_color(COLOR_ERROR);
 			printf_locked("Unknown command.\n");
+		}
 		
 		// Free command string
 		free(args);

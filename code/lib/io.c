@@ -94,10 +94,24 @@ char *getline()
 	return 0;
 }
 
-fs_err_t fopen(const char *path, fs_fd_t *fdPtr)
+// Checks the given path string for invalid characters.
+static bool check_path_string(const char *path)
 {
+	// Check path characters
+	for(const char *pathPtr = path; *pathPtr; ++pathPtr)
+		if(*pathPtr < 0x20 || *pathPtr >= 0x7F)
+			return false;
+	return true;
+}
+
+fs_err_t fopen(const char *path, fs_fd_t *fdPtr, bool create)
+{
+	// Check path validity
+	if(!check_path_string(path))
+		return FS_ERR_INVALID_PATH_FORMAT;
+	
 	// Call system function
-	return sys_fs_open(path, fdPtr);
+	return sys_fs_open(path, fdPtr, create);
 }
 
 void fclose(fs_fd_t fd)
@@ -132,18 +146,34 @@ void fseek(int64_t offset, fs_seek_whence_t whence, fs_fd_t fd)
 
 fs_err_t create_directory(const char *path, const char *name)
 {
+	// Check path validity
+	if(!check_path_string(path))
+		return FS_ERR_INVALID_PATH_FORMAT;
+	if(!check_path_string(name))
+		return FS_ERR_INVALID_PATH_FORMAT;
+	
 	// Call system function
 	return sys_fs_create_directory(path, name);
 }
 
 fs_err_t test_directory(const char *path, const char *name)
 {
+	// Check path validity
+	if(!check_path_string(path))
+		return FS_ERR_INVALID_PATH_FORMAT;
+	if(!check_path_string(name))
+		return FS_ERR_INVALID_PATH_FORMAT;
+	
 	// Call system function
 	return sys_fs_test_directory(path, name);
 }
 
 int flist(const char *path, char *buffer, int bufferLength)
 {
+	// Check path validity
+	if(!check_path_string(path))
+		return FS_ERR_INVALID_PATH_FORMAT;
+	
 	// Call system function
 	return sys_fs_list(path, buffer, bufferLength);
 }

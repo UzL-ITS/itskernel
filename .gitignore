@@ -286,3 +286,5 @@ code/kernel/itskernel.asm
 /code/ui/itskernelui
 /code/testapp/testapp
 /run/disk.vmdk
+
+*.vmdk

@@ -15,5 +15,5 @@ ITS kernel standard library process functionality.
 
 /* DECLARATIONS */
 
-// Starts the given ELF program as a new process.
-bool start_process(uint8_t *program, int programLength);
+// Runs the given executable in a new process.
+bool start_process(const char *programPath);

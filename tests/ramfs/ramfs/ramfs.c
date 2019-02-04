@@ -387,7 +387,7 @@ static ramfs_err_t create_file(ramfs_directory_t *directory, const char *name, r
     return RAMFS_ERR_OK;
 }
 
-ramfs_err_t ramfs_open(const char *path, ramfs_fd_t *fdPtr)
+ramfs_err_t ramfs_open(const char *path, ramfs_fd_t *fdPtr, bool create)
 {
     acquire_lock();
 
@@ -410,7 +410,7 @@ ramfs_err_t ramfs_open(const char *path, ramfs_fd_t *fdPtr)
     ramfs_file_t *file;
     ramfs_directory_t *directory;
     ramfs_err_t err = get_file_entry(path, &fileNameStart, &file, &directory);
-    if(err == RAMFS_ERR_FILE_DOES_NOT_EXIST)
+    if(err == RAMFS_ERR_FILE_DOES_NOT_EXIST && create)
     {
         // File does not exist yet, create it
         err = create_file(directory, fileNameStart, &file);
@@ -591,9 +591,9 @@ void ramfs_seek(int64_t offset, ramfs_seek_whence_t whence, ramfs_fd_t fd)
     uint64_t position = 0;
     if(whence == RAMFS_SEEK_START && offset >= 0)
         position = offset;
-    else if(whence == RAMFS_SEEK_CURRENT && (offset >= 0 || handle->position >= -offset))
+    else if(whence == RAMFS_SEEK_CURRENT && (offset >= 0 || (int64_t)handle->position >= -offset))
         position = (uint64_t)(handle->position + offset);
-    else if(whence == RAMFS_SEEK_END && offset <= 0 && handle->file->dataLength - 1 >= -offset)
+    else if(whence == RAMFS_SEEK_END && offset <= 0 && (int64_t)handle->file->dataLength - 1 >= -offset)
         position = handle->file->dataLength - 1 + offset;
     if(position >= handle->file->dataLength)
         position = handle->file->dataLength - 1;
@@ -686,7 +686,7 @@ int ramfs_list(const char *path, char *buffer, int bufferLength)
         for(int i = 4; i >= 0; --i)
         {
             // Non-zero value in current order of magnitude? -> print
-            if(fileSizeOrders[i] != 0)
+            if(fileSizeOrders[i] != 0 || i == 0)
             {
                 // Convert number to string
                 itoa(fileSizeOrders[i], &fileSizeString[0], 10);

@@ -33,7 +33,7 @@ int main()
     }
 
     ramfs_fd_t fd;
-    printf("fopen 1: %d\n", ramfs_open("/test/test.txt", &fd));
+    printf("fopen 1: %d\n", ramfs_open("/test/test.txt", &fd, true));
     printf("fwrite 1: %d\n", ramfs_write(data1, 100, fd));
     printf("fwrite 2: %d\n", ramfs_write(data1 + 100, 9000, fd));
     printf("fwrite 3: %d\n", ramfs_write(data1 + 9100, 900, fd));
@@ -71,7 +71,7 @@ int main()
         printf("Writing file %d...\n", i);
         char filename[100];
         sprintf(filename, "/test/file%d.bin", i);
-        ramfs_open(filename, &fd);
+        ramfs_open(filename, &fd, true);
         uint64_t size = 0;
         while(size < sizes[i])
         {
