@@ -1,26 +1,33 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Drawing;
-using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace dumpconverter
 {
-    class Program
+    internal class Program
     {
-        const byte DUMP_FREE = 0x01;
-        const byte DUMP_STACK_PAGE = 0x02;
-        const byte DUMP_SIZE_2M = 0x04;
-        const byte DUMP_SIZE_1G = 0x08;
-        const byte DUMP_RESERVED = 0x10;
-        const byte DUMP_AUX = 0x20;
+        private const byte DUMP_FREE = 0x01;
+        private const byte DUMP_STACK_PAGE = 0x02;
+        private const byte DUMP_SIZE_2M = 0x04;
+        private const byte DUMP_SIZE_1G = 0x08;
+        private const byte DUMP_RESERVED = 0x10;
+        private const byte DUMP_AUX = 0x20;
+        private const int WIDTH = 512;
 
-        const int WIDTH = 512;
-
-        static void Main(string[] args)
+        private static void Main(string[] args)
         {
+            Dump dump = new Dump("R:\\itskernel\\out\\dump.bin");
+
+            foreach(var entry in dump.MemoryMap)
+                Console.WriteLine("- " + entry.AddressStart.ToString("X16") + "    " + entry.AddressEnd.ToString("X16") + "    " + entry.Type.ToString());
+            Console.WriteLine();
+
+            foreach(var frame in dump.Frames)
+                Console.WriteLine(frame.Address.ToString("X16") + "    " + frame.Flags.ToString());
+
+
+            Console.ReadLine();
+
+            /*
+
             DirectoryInfo dumpsDir = new DirectoryInfo("R:\\dumps");
             foreach(var file in dumpsDir.GetFiles("*.png"))
                 file.Delete();
@@ -62,6 +69,8 @@ namespace dumpconverter
 
                 bmp.Save("R:\\dumps\\" + Path.GetFileNameWithoutExtension(file.Name) + ".png", System.Drawing.Imaging.ImageFormat.Png);
             }
+
+            */
         }
     }
 }

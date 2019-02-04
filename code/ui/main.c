@@ -602,14 +602,42 @@ void main()
 				
 				// Print help text for sub commands
 				printf_locked("Supported commands:\n");
-				printf_locked("    storemap [file name]      Generate map of physical memory and store it in the given file\n");
-				printf_locked("    showmap [file name]       Render map of physical memory\n");
+				printf_locked("    dump [file name]      Generate list of available physical pages and store it in the given file\n");
+				printf_locked("    showmap [file name]   Render map of physical memory\n");
 				
 				
 			}
-			else if(strcmp(args[1], "storemap") == 0)
+			else if(strcmp(args[1], "dump") == 0)
 			{
-				
+				if(argCount < 3)
+				{
+					terminal_set_front_color(COLOR_ERROR);
+					printf_locked("Missing argument.\n");
+				}
+				else
+				{
+					// Absolute or relative path?
+					int pathLength = strlen(args[2]);
+					if(pathLength >= 1 && args[2][0] == '/')
+					{
+						// Use argument as entire path
+						strncpy(buffer, args[2], pathLength);
+						buffer[pathLength] = '\0';
+					}
+					else
+					{
+						// Concat current directory and given path
+						int currentDirectoryStringLength = strlen(currentDirectory);
+						strncpy(buffer, currentDirectory, currentDirectoryStringLength);
+						strncpy(&buffer[currentDirectoryStringLength], args[2], pathLength);
+						buffer[currentDirectoryStringLength + pathLength] = '\0';
+					}
+					
+					// Generate dump
+					printf_locked("Running dump...");
+					sys_dump(0, buffer);
+					printf_locked("done.\n");
+				}
 			}
 			else if(strcmp(args[1], "showmap") == 0)
 			{

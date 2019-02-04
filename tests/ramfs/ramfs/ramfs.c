@@ -593,10 +593,10 @@ void ramfs_seek(int64_t offset, ramfs_seek_whence_t whence, ramfs_fd_t fd)
         position = offset;
     else if(whence == RAMFS_SEEK_CURRENT && (offset >= 0 || (int64_t)handle->position >= -offset))
         position = (uint64_t)(handle->position + offset);
-    else if(whence == RAMFS_SEEK_END && offset <= 0 && (int64_t)handle->file->dataLength - 1 >= -offset)
-        position = handle->file->dataLength - 1 + offset;
-    if(position >= handle->file->dataLength)
-        position = handle->file->dataLength - 1;
+    else if(whence == RAMFS_SEEK_END && offset <= 0 && (int64_t)handle->file->dataLength >= -offset)
+        position = handle->file->dataLength + offset;
+    if(position > handle->file->dataLength)
+        position = handle->file->dataLength;
 
     // Find suitable block
     ramfs_file_block_entry_t *currBlock = handle->file->firstBlock;
@@ -604,7 +604,7 @@ void ramfs_seek(int64_t offset, ramfs_seek_whence_t whence, ramfs_fd_t fd)
     while(skip > 0)
     {
         // Skip entire block?
-        if(skip >= currBlock->dataLength)
+        if(skip > currBlock->dataLength)
         {
             skip -= currBlock->dataLength;
             currBlock = currBlock->next;

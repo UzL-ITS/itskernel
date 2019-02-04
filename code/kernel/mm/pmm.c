@@ -8,7 +8,9 @@
 #include <util/container.h>
 #include <trace/trace.h>
 #include <stdlib/string.h>
+#include <stdlib/stdlib.h>
 #include <stdbool.h>
+#include <fs/ramfs.h>
 
 // Pointer to the PMM PML1 (loops once in PML4).
 #define PMM_PML1_ADDRESS 0xFFFFFF7F7F7FF000
@@ -53,24 +55,27 @@ typedef struct
 // This memory is mapped in pmm_init() to the virtual addresses pointed to by PMM_INTERNAL_DATA_ADDRESS.
 static pmm_stack_page_t pmmPhyData[STACK_COUNT + 1] __attribute__((__aligned__(FRAME_SIZE)));
 
-// Pointer to the PMM management data.
+// Pointer to the (virtually contiguous) PMM management data.
 // - 9 entries: Top stack pages
 // - 1 entry: List of reserved pages to be used as stack pages later.
-// - 64 entries: Auxiliary pages for bookkeeping in defragmentation.
+// - PMM_AUX_PAGES_COUNT entries: Auxiliary pages for bookkeeping in defragmentation.
 static pmm_stack_page_t *pmmData = (pmm_stack_page_t *)PMM_INTERNAL_DATA_ADDRESS;
 
-// Points to the PML1 level table that contains the PMM stack pages (pmmData_pml1 in start.s).
-// The given hardcoded address uses magic to do a loop in PML4 by accessing PML4[510], which contains a pointer to itself.
+// Points to the PML1 level table that itself points to the PMM top stack pages (pmmData_pml1 in start.s).
+// The given hardcoded address uses magic to do one loop in PML4 by accessing PML4[510], which contains a pointer to itself.
 static uint64_t *pmmPml1Table = (uint64_t *)PMM_PML1_ADDRESS;
 
 // The PMM is not thread safe -> lock to avoid inconstencies.
 static spinlock_t pmmLock = SPIN_UNLOCKED;
 
-// Total page count for each size/zone combination. Only used for debugging.
-static uint64_t pmmTotalFrameCounts[STACK_COUNT];
-
 // Determines whether the reserved stack pages list has already been initialized.
 static bool stackPageListInitialized = false;
+
+// Contains the maximum amount of 4K pages in physical memory. Only for statistical purposes.
+static uint64_t total4kPages = 0;
+
+// Points to the initial memory map. Only for statistical purposes.
+static list_t *initialMemoryMap = 0;
 
 // Forward declarations
 static void _pmm_free(int size, int zone, uintptr_t addr);
@@ -734,6 +739,7 @@ static void _pmm_defragment(bool merge, bool secondPass)
 }
 
 // Pushes a range of pages between (aligned) addresses start...end with the given size onto the respective stack.
+// Only used at initialization.
 static void pmm_push_range(uintptr_t start, uintptr_t end, int size)
 {
 	// Are 1G pages enabled?
@@ -765,11 +771,40 @@ static void pmm_push_range(uintptr_t start, uintptr_t end, int size)
         // Add this address to the matching stack
         int zone = get_zone(size, addr);
         _pmm_free(size, zone, addr);
-
-        // Keep track of free page count
-        int idx = SZ_TO_IDX(size, zone);
-        pmmTotalFrameCounts[idx]++;
     }
+}
+
+// Returns the number of available pages for the given size/zone combination.
+static uint32_t _pmm_get_frame_count(int size, int zone)
+{
+	// Get stack
+	int idx = SZ_TO_IDX(size, zone);
+    pmm_stack_page_t *stackTop = &pmmData[idx];
+	
+    // Traverse stack to count available addresses
+	uint32_t totalFrameCount = 0;
+	uint64_t firstStackPageAddress = 0;
+	while(true)
+	{
+		// Add amount of free pages
+		totalFrameCount += stackTop->count;
+
+		// Store address of first stack page
+		bool nextStackPageExists = stackTop->next ? true : false;
+		uint64_t currentStackPageAddress = stack_switch(size, zone, stackTop->next);
+		if(firstStackPageAddress == 0)
+			firstStackPageAddress = currentStackPageAddress;
+
+		// Next page valid?
+		if(!nextStackPageExists)
+			break;
+	}
+
+	// Restore top stack page
+	stack_switch(size, zone, firstStackPageAddress);
+	
+	// Done
+	return totalFrameCount;
 }
 
 // DEBUG
@@ -779,8 +814,7 @@ static void _pmm_debug()
     {
         for(int size = 0; size < SIZE_COUNT; size++)
         {
-            int idx = SZ_TO_IDX(size, zone);
-            uint64_t count = pmmTotalFrameCounts[idx];
+            uint64_t count = _pmm_get_frame_count(size, zone);
             if(count > 0)
             {
                 const char *zone_str = get_zone_str(zone);
@@ -789,10 +823,14 @@ static void _pmm_debug()
             }
         }
     }
+    trace_printf(" Total 4K pages: %d\n", total4kPages);
 }
 
 void pmm_init(list_t *map)
 {
+	// Store map
+	initialMemoryMap = map;
+	
 	// First load the nine initial PMM stack pages into virtual memory by writing their physical address into the PMM PML1 page table
     // These stack pages are then referred twice by virtual memory (once in the kernel image address space, and here)
     for(int size = 0; size < SIZE_COUNT; size++)
@@ -813,8 +851,9 @@ void pmm_init(list_t *map)
     tlb_invlpg(PMM_INTERNAL_DATA_ADDRESS + STACK_COUNT * FRAME_SIZE);
     pmmData[STACK_COUNT].count = 0;
     pmmData[STACK_COUNT].next = 0; // Unused
-
+	
     // Iterate memory map
+	total4kPages = 0;
     list_for_each(map, node)
     {
         // Retrieve entry
@@ -827,7 +866,10 @@ void pmm_init(list_t *map)
         // Get respective maximum address ranges for aligned pages with given sizes
         uintptr_t start = PAGE_ALIGN(entry->addr_start); // (finds the next page aligned address >= x)
         uintptr_t end = PAGE_ALIGN_REVERSE(entry->addr_end + 1); // (Finds the last page aligned address <= x); addr_end is inclusive, end should be exclusive, therefore we do +1
-
+		
+		// Collect total page count
+		total4kPages += (end - start) / FRAME_SIZE;
+		
         uintptr_t start_2m = PAGE_ALIGN_2M(entry->addr_start);
         uintptr_t end_2m = PAGE_ALIGN_REVERSE_2M(entry->addr_end + 1);
 		
@@ -1078,4 +1120,136 @@ uintptr_t pmm_alloc_contiguous(int size, int count)
     // No contiguous block found
     spin_unlock(&pmmLock);
     return 0;
+}
+
+#define DUMP_FREE 0x01
+#define DUMP_STACK_PAGE 0x02
+#define DUMP_SIZE_2M 0x04
+#define DUMP_SIZE_1G 0x08
+#define DUMP_RESERVED 0x10
+#define DUMP_AUX 0x20
+void pmm_dump_stack(const char *filePath)
+{
+	// Estimate total number of addresses that will be printed in the dump
+	trace_printf("Estimating dump address count...\n");
+    spin_lock(&pmmLock);
+	uint32_t estimatedAddressCount = 0;
+	for(int zone = 0; zone < ZONE_COUNT; zone++)
+		for(int size = 0; size < SIZE_COUNT; size++)
+		{
+			// Add address count
+			uint32_t frameCount = _pmm_get_frame_count(size, zone);
+			estimatedAddressCount += frameCount;
+			
+			// Add stack page count
+			estimatedAddressCount += 1 + (frameCount / PMM_STACK_PAGE_SIZE);
+		}
+	estimatedAddressCount += pmmData[STACK_COUNT].count + 1;
+	estimatedAddressCount += PMM_AUX_PAGES_COUNT;
+    spin_unlock(&pmmLock);
+	
+	// The following malloc() call might cause a lot of subsequent changes in the PMM stacks, so add some more space for safety
+	// (although this number is very pessimistic, 2 * 512 for one 1G and one 2M page split should probably be sufficient?)
+	estimatedAddressCount += 4096;
+	
+	// Allocate memory
+	trace_printf("Allocating memory for %d estimated addresses...\n", estimatedAddressCount);
+	uint32_t addressCount = 0;
+	uint64_t *dump = malloc(estimatedAddressCount * sizeof(uint64_t));
+	
+	// Do dump
+    trace_printf("Dumping PMM stacks...\n");
+    spin_lock(&pmmLock);
+    for(int zone = 0; zone < ZONE_COUNT; zone++)
+    {
+        for(int size = 0; size < SIZE_COUNT; size++)
+        {
+			// Prepare flag field for free pages
+			uint8_t freeFrameFlags = DUMP_FREE;
+			if(size == SIZE_2M)
+				freeFrameFlags |= DUMP_SIZE_2M;
+			else if(size == SIZE_1G)
+				freeFrameFlags |= DUMP_SIZE_1G;
+			
+			// Get related stack page
+            int idx = SZ_TO_IDX(size, zone);
+            pmm_stack_page_t *stackTop = &pmmData[idx];
+			
+            // Traverse stack and write frame addresses
+			uint64_t firstStackPageAddress = 0;
+            while(true)
+            {
+                // Write frame addresses
+				for(int i = 0; i < (int)stackTop->count; ++i)
+					dump[addressCount++] = stackTop->frames[i] | freeFrameFlags;
+				
+				// Proceed to next stack page
+                bool nextStackPageExists = stackTop->next ? true : false;
+                uint64_t currentStackPageAddress = stack_switch(size, zone, stackTop->next);
+				
+				// Write address of stack page
+				dump[addressCount++] = currentStackPageAddress | DUMP_STACK_PAGE;
+				
+                // Remember address of first stack page
+				if(firstStackPageAddress == 0)
+					firstStackPageAddress = currentStackPageAddress;
+
+                // Next page valid?
+                if(!nextStackPageExists)
+                    break;
+            }
+
+            // Restore top stack page
+            stack_switch(size, zone, firstStackPageAddress);
+		}
+	}
+	
+	// Dump addresses of reserved pages
+    pmm_stack_page_t *reservedStackPagesList = &pmmData[STACK_COUNT];
+	for(int i = 0; i < (int)reservedStackPagesList->count; ++i)
+		dump[addressCount++] = reservedStackPagesList->frames[i] | DUMP_RESERVED;
+	dump[addressCount++] = (pmmPml1Table[STACK_COUNT] & PG_ADDR_MASK) | DUMP_STACK_PAGE;
+	
+	// Dump addresses of auxiliary pages
+	for(int i = 0; i < PMM_AUX_PAGES_COUNT; ++i)
+		dump[addressCount++] = (pmmPml1Table[STACK_COUNT + 1 + i] & PG_ADDR_MASK) | DUMP_AUX;
+	
+	// Dump data successfully collected
+    spin_unlock(&pmmLock);
+	trace_printf("Dump data collection completed (%d addresses in total).\n", addressCount);
+	
+	// Open output file
+	trace_printf("Writing dump to file...\n");
+	ramfs_fd_t fd;
+	if(ramfs_open(filePath, &fd, true) != RAMFS_ERR_OK)
+	{
+		trace_printf("Error opening output file.\n");
+		return;
+	}
+	
+	// Write memory map
+	uint32_t memoryMapLength = (uint32_t)initialMemoryMap->size;
+	ramfs_write((uint8_t *)&memoryMapLength, sizeof(memoryMapLength), fd);
+    list_for_each(initialMemoryMap, node)
+    {
+        // Retrieve entry
+        mm_map_entry_t *entry = container_of(node, mm_map_entry_t, node);
+		
+		// Write entry data
+		uint32_t entryType = entry->type;
+		ramfs_write((uint8_t *)&entryType, sizeof(entryType), fd);
+		uint64_t entryAddrStart = entry->addr_start;
+		ramfs_write((uint8_t *)&entryAddrStart, sizeof(entryAddrStart), fd);
+		uint64_t entryAddrEnd = entry->addr_end;
+		ramfs_write((uint8_t *)&entryAddrEnd, sizeof(entryAddrEnd), fd);
+	}
+	
+	// Write address data
+	ramfs_write((uint8_t *)&addressCount, sizeof(addressCount), fd);
+	ramfs_write((uint8_t *)dump, addressCount * sizeof(dump[0]), fd);
+	
+	// Done
+	ramfs_close(fd);
+	free(dump);
+	trace_printf("PMM dump successful.\n");
 }

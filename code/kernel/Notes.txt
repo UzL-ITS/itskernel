@@ -83,7 +83,7 @@ i219:
 
 TODO Feature-Ideen:
 	Aktuellen Speicherstatus/Belegung abrufen und anzeigen
-	Standard-Linux-Befehle
+	Mehr Standard-Linux-Befehle
 	Kernel-Threads
 	Geziele Allokierung bestimmter phys. Adressen
 	Contiguous Allocation fixen

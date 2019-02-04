@@ -87,6 +87,9 @@ void sys_send_network_packet(uint8_t *packet, int packetLength);
 // Copies system information into the given buffer.
 void sys_info(int infoId, uint8_t *buffer);
 
+// Dumps system information into the given file.
+void sys_dump(int infoId, const char *filePath);
+
 // Sets the core the current thread shall be run on.
 void sys_set_affinity(int coreId);
 

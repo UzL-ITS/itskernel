@@ -47,4 +47,9 @@ void pmm_frees(int size, uintptr_t addr);
 //       It is meant only for the few cases where contiguous physical memory is absolutely necessary (e.g. DMA).
 uintptr_t pmm_alloc_contiguous(int size, int count);
 
+// Dumps the internal PMM stack to a file.
+// NOTE: This function does some estimations on the current amount of available page frames.
+//       Doing allocations on another core while the dump is being generated might cause crashes.
+void pmm_dump_stack(const char *name);
+
 #endif

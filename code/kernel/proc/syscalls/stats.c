@@ -2,6 +2,7 @@
 #include <proc/syscalls.h>
 #include <smp/cpu.h>
 #include <smp/topology.h>
+#include <mm/pmm.h>
 
 uint64_t sys_get_elapsed_milliseconds()
 {
@@ -38,6 +39,20 @@ void sys_info(int infoId, uint8_t *buffer)
 				buffer32[3 * p + 1] = t->coreId;
 				buffer32[3 * p + 2] = t->smtId;
 			}
+			break;
+		}
+	}
+}
+
+void sys_dump(int infoId, const char *filePath)
+{
+	// Act depending on information ID
+	switch(infoId)
+	{
+		// Dump PMM state
+		case 0:
+		{
+			pmm_dump_stack(filePath);
 			break;
 		}
 	}

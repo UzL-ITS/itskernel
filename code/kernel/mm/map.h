@@ -15,6 +15,8 @@ typedef struct
   uintptr_t addr_end;
 } mm_map_entry_t;
 
+// Reads the memory map from the multiboot structure and returns a pointer to it.
+// The returned list must NOT be freed, as it is allocated using the sequential allocater.
 list_t *mm_map_init(multiboot_t *multiboot);
 
 #endif
