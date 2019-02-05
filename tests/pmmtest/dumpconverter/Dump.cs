@@ -6,8 +6,18 @@ namespace dumpconverter
 {
     internal class Dump
     {
-        public  List<MemoryMapEntry> MemoryMap { get; } = new List<MemoryMapEntry>();
+        public List<MemoryMapEntry> MemoryMap { get; } = new List<MemoryMapEntry>();
         public List<FrameData> Frames { get; } = new List<FrameData>();
+
+        private ulong AlignToNext4K(ulong addr)
+        {
+            return (addr + 0xFFFul) & ~0xFFFul;
+        }
+
+        private ulong AlignToPrev4K(ulong addr)
+        {
+            return addr & ~0xFFFul;
+        }
 
         public Dump(string fileName)
         {
@@ -19,15 +29,15 @@ namespace dumpconverter
                 for(int i = 0; i < memoryMapEntryCount; ++i)
                 {
                     MemoryMapEntry entry = new MemoryMapEntry();
-                    entry.Type =(MemoryMapEntryTypes) dump.ReadUInt32();
-                    entry.AddressStart = dump.ReadUInt64();
-                    entry.AddressEnd = dump.ReadUInt64();
+                    entry.Type = (MemoryMapEntryTypes)dump.ReadUInt32();
+                    entry.AddressStart = AlignToNext4K(dump.ReadUInt64());
+                    entry.AddressEnd = AlignToPrev4K(dump.ReadUInt64());
                     MemoryMap.Add(entry);
                 }
 
                 // Read frames
                 int frameCount = (int)dump.ReadUInt32();
-                for(int i =0; i <frameCount; ++i)
+                for(int i = 0; i < frameCount; ++i)
                 {
                     FrameData frame = new FrameData();
                     ulong data = dump.ReadUInt64();

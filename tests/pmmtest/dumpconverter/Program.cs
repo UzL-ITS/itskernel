@@ -1,76 +1,91 @@
-﻿using System;
+﻿using System.Drawing;
+using System.IO;
+using System.Linq;
 
 namespace dumpconverter
 {
     internal class Program
     {
-        private const byte DUMP_FREE = 0x01;
-        private const byte DUMP_STACK_PAGE = 0x02;
-        private const byte DUMP_SIZE_2M = 0x04;
-        private const byte DUMP_SIZE_1G = 0x08;
-        private const byte DUMP_RESERVED = 0x10;
-        private const byte DUMP_AUX = 0x20;
         private const int WIDTH = 512;
 
         private static void Main(string[] args)
         {
+            // Read dump
             Dump dump = new Dump("R:\\itskernel\\out\\dump.bin");
+            
+            //foreach(var entry in dump.MemoryMap)
+            //    Console.WriteLine("- " + entry.AddressStart.ToString("X16") + "    " + entry.AddressEnd.ToString("X16") + "    " + entry.Type.ToString());
+            //Console.WriteLine();
 
-            foreach(var entry in dump.MemoryMap)
-                Console.WriteLine("- " + entry.AddressStart.ToString("X16") + "    " + entry.AddressEnd.ToString("X16") + "    " + entry.Type.ToString());
-            Console.WriteLine();
+            //foreach(var frame in dump.Frames)
+            //    Console.WriteLine(frame.Address.ToString("X16") + "    " + frame.Flags.ToString());
 
-            foreach(var frame in dump.Frames)
-                Console.WriteLine(frame.Address.ToString("X16") + "    " + frame.Flags.ToString());
+            
 
-
-            Console.ReadLine();
-
-            /*
-
+            // Delete old dumps
             DirectoryInfo dumpsDir = new DirectoryInfo("R:\\dumps");
+            if(!dumpsDir.Exists)
+                dumpsDir.Create();
             foreach(var file in dumpsDir.GetFiles("*.png"))
                 file.Delete();
-
-            DirectoryInfo dir = new DirectoryInfo("R:\\");
-            foreach(var file in dir.GetFiles("*.bin"))
+            
+            foreach(var mapEntry in dump.MemoryMap)
             {
-                byte[] dumpFile = File.ReadAllBytes(file.FullName);
+                // Skip uninteresting entries
+                if(mapEntry.Type != Dump.MemoryMapEntryTypes.Available || mapEntry.AddressStart >= mapEntry.AddressEnd)
+                    continue;
 
-                ulong pageCount = BitConverter.ToUInt64(dumpFile, 0);
-
-                Bitmap bmp = new Bitmap(WIDTH, (int)((pageCount + WIDTH - 1) / WIDTH));
-                using(Graphics g = Graphics.FromImage(bmp))
+                // Prepare image
+                string imageName = $"{mapEntry.AddressStart.ToString("X16")}-{mapEntry.AddressEnd.ToString("X16")}-{mapEntry.Type.ToString()}.png";
+                int imageFrameCount = (int)((mapEntry.AddressEnd - mapEntry.AddressStart) / 4096);
+                Bitmap image = new Bitmap(WIDTH, (imageFrameCount + WIDTH - 1) / WIDTH);
+                using(Graphics g = Graphics.FromImage(image))
                     g.Clear(Color.Black);
 
-                for(int i = 0; i < (int)pageCount; ++i)
+                foreach(var frame in dump.Frames.Where(f => mapEntry.AddressStart <= f.Address && f.Address <= mapEntry.AddressEnd))
                 {
-                    int row = i / WIDTH;
-                    int col = i % WIDTH;
-
-                    byte data = dumpFile[8 + i];
-
-                    if((data & DUMP_STACK_PAGE) != 0)
-                        bmp.SetPixel(col, row, Color.Blue);
-                    else if((data & DUMP_FREE) != 0)
+                    // Draw frame
+                    int pos = (int)((frame.Address - mapEntry.AddressStart) / 4096);
+                    int row = pos / WIDTH;
+                    int col = pos % WIDTH;
+                    if((frame.Flags & Dump.DumpEntryFlags.StackPage) == Dump.DumpEntryFlags.StackPage)
+                        image.SetPixel(col, row, Color.Blue);
+                    else if((frame.Flags & Dump.DumpEntryFlags.Reserved) == Dump.DumpEntryFlags.Reserved)
+                        image.SetPixel(col, row, Color.Cyan);
+                    else if((frame.Flags & Dump.DumpEntryFlags.Auxiliary) == Dump.DumpEntryFlags.Auxiliary)
+                        image.SetPixel(col, row, Color.Green);
+                    else if((frame.Flags & Dump.DumpEntryFlags.Free) == Dump.DumpEntryFlags.Free)
                     {
-                        if((data & DUMP_SIZE_1G) != 0)
-                            bmp.SetPixel(col, row, Color.Yellow);
-                        else if((data & DUMP_SIZE_2M) != 0)
-                            bmp.SetPixel(col, row, Color.Orange);
+                        if((frame.Flags & Dump.DumpEntryFlags.Size2M) == Dump.DumpEntryFlags.Size2M)
+                        {
+                            int cnt = (2 * 1024 * 1024) / 4096;
+                            for(int i = 0; i < cnt; ++i)
+                            {
+                                row = (pos + i) / WIDTH;
+                                col = (pos + i) % WIDTH;
+                                image.SetPixel(col, row, Color.Orange);
+                            }
+                        }
+                        else if((frame.Flags & Dump.DumpEntryFlags.Size1G) == Dump.DumpEntryFlags.Size1G)
+                        {
+                            int cnt = (1 * 1024 * 1024 * 1024) / 4096;
+                            for(int i = 0; i < cnt; ++i)
+                            {
+                                row = (pos + i) / WIDTH;
+                                col = (pos + i) % WIDTH;
+                                image.SetPixel(col, row, Color.Yellow);
+                            }
+                        }
                         else
-                            bmp.SetPixel(col, row, Color.Red);
+                        {
+                            image.SetPixel(col, row, Color.Red);
+                        }
                     }
-                    else if((data & DUMP_RESERVED) != 0)
-                        bmp.SetPixel(col, row, Color.Cyan);
-                    else if((data & DUMP_AUX) != 0)
-                        bmp.SetPixel(col, row, Color.Green);
                 }
 
-                bmp.Save("R:\\dumps\\" + Path.GetFileNameWithoutExtension(file.Name) + ".png", System.Drawing.Imaging.ImageFormat.Png);
+                // Done
+                image.Save("R:\\dumps\\" + imageName, System.Drawing.Imaging.ImageFormat.Png);
             }
-
-            */
         }
     }
 }
