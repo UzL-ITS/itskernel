@@ -1,6 +1,8 @@
+#pragma once
+
 /*
 Intel network controller register and flag definitions.
-Taken from Linux e1000e driver.
+Taken from Linux e1000e driver, and slightly modified.
 */
 
 /* Registers */
@@ -256,6 +258,7 @@ typedef enum
 typedef enum
 {
 	E1000_ICR_TXDW = 0x00000001, /* Transmit desc written back */
+	E1000_ICR_TXQE = 0x00000002, /* Transmit queue empty */
 	E1000_ICR_LSC = 0x00000004, /* Link Status Change */
 	E1000_ICR_RXSEQ = 0x00000008, /* Rx sequence error */
 	E1000_ICR_RXDMT0 = 0x00000010, /* Rx desc min. threshold (0) */

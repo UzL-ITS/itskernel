@@ -1,8 +1,8 @@
 /*
-Intel i219 (e1000e) ethernet driver.
+Intel e1000e (I217/I218/I219) ethernet driver.
 */
 
-#include <net/i219.h>
+#include <net/e1000e.h>
 #include <net/e1000_defs.h>
 #include <trace/trace.h>
 #include <mm/mmio.h>
@@ -14,7 +14,7 @@ Intel i219 (e1000e) ethernet driver.
 #include <lock/raw_spinlock.h>
 
 // Maximum Transmission Unit (this value is slightly arbitrary, it matches the value used in the user-space LWIP wrapper).
-#define I219_MTU 1522
+#define E1000E_MTU 1522
 
 // Structure of receive descriptors.
 typedef struct
@@ -73,7 +73,7 @@ typedef struct received_packet_s
 	int length;
 	
 	// Packet data
-	uint8_t packet[I219_MTU];
+	uint8_t packet[E1000E_MTU];
 } received_packet_t;
 
 
@@ -124,18 +124,18 @@ static raw_spinlock_t receiveLock = RAW_SPINLOCK_UNLOCKED;
 
 
 // Reads the given device register using MMIO.
-static uint32_t i219_read(e1000_register_t reg)
+static uint32_t e1000e_read(e1000_register_t reg)
 {
 	return *((uint32_t *)(deviceBar0Memory + reg));
 }
 
 // Sets a new value for the given device register using MMIO.
-static void i219_write(e1000_register_t reg, uint32_t value)
+static void e1000e_write(e1000_register_t reg, uint32_t value)
 {
 	*((uint32_t *)(deviceBar0Memory + reg)) = value;
 }	
 
-void i219_init(pci_cfgspace_header_0_t *deviceCfgSpaceHeader)
+void e1000e_init(pci_cfgspace_header_0_t *deviceCfgSpaceHeader)
 {
 	// Map BAR0 memory area
 	pci_bar_info_t bar0Info;
@@ -151,7 +151,7 @@ void i219_init(pci_cfgspace_header_0_t *deviceCfgSpaceHeader)
 	deviceCfgSpaceHeader->commonHeader.command = commandRegister;
 	
 	// Read MAC address
-	uint32_t macLow = i219_read(E1000_REG_RAL);
+	uint32_t macLow = e1000e_read(E1000_REG_RAL);
 	if(macLow != 0x00000000)
 	{
 		// MAC can be read from RAL[0]/RAH[0] MMIO directly
@@ -159,7 +159,7 @@ void i219_init(pci_cfgspace_header_0_t *deviceCfgSpaceHeader)
 		macAddress[1] = (macLow >> 8) & 0xFF;
 		macAddress[2] = (macLow >> 16) & 0xFF;
 		macAddress[3] = (macLow >> 24) & 0xFF;
-		uint32_t macHigh = i219_read(E1000_REG_RAH);
+		uint32_t macHigh = e1000e_read(E1000_REG_RAH);
 		macAddress[4] = macHigh & 0xFF;
 		macAddress[5] = (macHigh >> 8) & 0xFF;
 	}
@@ -174,30 +174,30 @@ void i219_init(pci_cfgspace_header_0_t *deviceCfgSpaceHeader)
 		macAddress[4],
 		macAddress[5]
 	);
-	trace_printf("INIT Device status: %08x\n", i219_read(E1000_REG_STATUS));
-	trace_printf("     CTRL = %08x\n", i219_read(E1000_REG_CTRL));
-	trace_printf("     RCTL = %08x\n", i219_read(E1000_REG_RCTL));
-	trace_printf("     RDBAH = %08x\n", i219_read(E1000_REG_RDBAH));
-	trace_printf("     RDBAL = %08x\n", i219_read(E1000_REG_RDBAL));
-	trace_printf("     RDH = %08x\n", i219_read(E1000_REG_RDH));
-	trace_printf("     RDT = %08x\n", i219_read(E1000_REG_RDT));
-	trace_printf("     PBA = %08x\n", i219_read(E1000_REG_PBA));
-	trace_printf("     PBS = %08x\n", i219_read(E1000_REG_PBS));
-	trace_printf("     RFCTL = %08x\n", i219_read(E1000_REG_RFCTL));
-	trace_printf("     RXCSUM = %08x\n", i219_read(E1000_REG_RXCSUM));
-	trace_printf("     MRQC = %08x\n", i219_read(E1000_REG_MRQC));
-	trace_printf("     TCTL = %08x\n", i219_read(E1000_REG_TCTL));
+	trace_printf("INIT Device status: %08x\n", e1000e_read(E1000_REG_STATUS));
+	trace_printf("     CTRL = %08x\n", e1000e_read(E1000_REG_CTRL));
+	trace_printf("     RCTL = %08x\n", e1000e_read(E1000_REG_RCTL));
+	trace_printf("     RDBAH = %08x\n", e1000e_read(E1000_REG_RDBAH));
+	trace_printf("     RDBAL = %08x\n", e1000e_read(E1000_REG_RDBAL));
+	trace_printf("     RDH = %08x\n", e1000e_read(E1000_REG_RDH));
+	trace_printf("     RDT = %08x\n", e1000e_read(E1000_REG_RDT));
+	trace_printf("     PBA = %08x\n", e1000e_read(E1000_REG_PBA));
+	trace_printf("     PBS = %08x\n", e1000e_read(E1000_REG_PBS));
+	trace_printf("     RFCTL = %08x\n", e1000e_read(E1000_REG_RFCTL));
+	trace_printf("     RXCSUM = %08x\n", e1000e_read(E1000_REG_RXCSUM));
+	trace_printf("     MRQC = %08x\n", e1000e_read(E1000_REG_MRQC));
+	trace_printf("     TCTL = %08x\n", e1000e_read(E1000_REG_TCTL));
 	
 	// TODO needed?
 	uint32_t status;
 	//do
-		status = i219_read(E1000_REG_STATUS);
+		status = e1000e_read(E1000_REG_STATUS);
 	//while(!(status & E1000_STATUS_LAN_INIT_DONE));
-	i219_write(E1000_REG_STATUS, status & (~E1000_STATUS_LAN_INIT_DONE));
+	e1000e_write(E1000_REG_STATUS, status & (~E1000_STATUS_LAN_INIT_DONE));
 	//do
-		status = i219_read(E1000_REG_STATUS);
+		status = e1000e_read(E1000_REG_STATUS);
 	//while(!(status & E1000_STATUS_PHYRA));
-	i219_write(E1000_REG_STATUS, status & (~E1000_STATUS_PHYRA));
+	e1000e_write(E1000_REG_STATUS, status & (~E1000_STATUS_PHYRA));
 	
 	/* netdev.c :: e1000e_open */
 	
@@ -206,31 +206,31 @@ void i219_init(pci_cfgspace_header_0_t *deviceCfgSpaceHeader)
 	/* ---- ich8lan.c :: e1000_reset_hw_ich8lan */
 	
 	// Disable all interrupts
-	i219_write(E1000_REG_IMC, 0xFFFFFFFF);
+	e1000e_write(E1000_REG_IMC, 0xFFFFFFFF);
 	
 	// Clear pending interrupts
-	i219_read(E1000_REG_ICR);
+	e1000e_read(E1000_REG_ICR);
 	
 	// Get hardware control from firmware
-	/*uint32_t ctrlExt = i219_read(E1000_REG_CTRL_EXT);
+	/*uint32_t ctrlExt = e1000e_read(E1000_REG_CTRL_EXT);
 	ctrlExt |= E1000_CTRL_EXT_DRV_LOAD;
-	i219_write(E1000_REG_CTRL_EXT, ctrlExt);*/
+	e1000e_write(E1000_REG_CTRL_EXT, ctrlExt);*/
 	
 	/* ---- ich8lan.c :: e1000_init_hw_ich8lan */
 	
 	// Clear multicast table array
 	for(int i = 0; i < 32; ++i)
-		i219_write(E1000_REG_MTA + 4 * i, 0x00000000);
+		e1000e_write(E1000_REG_MTA + 4 * i, 0x00000000);
 	
 	// Setup link
-	/*uint32_t ctrl = i219_read(E1000_REG_CTRL);
+	/*uint32_t ctrl = e1000e_read(E1000_REG_CTRL);
 	ctrl |= E1000_CTRL_SLU;
-	i219_write(E1000_REG_CTRL, ctrl);*/
+	e1000e_write(E1000_REG_CTRL, ctrl);*/
 	
 	// Interrupt throttling: Wait 1000 * 256ns = 256us between interrupts
 	// TODO adjust this for performance optimization
-	//i219_write(E1000_REG_ITR, 1000);
-	i219_write(E1000_REG_ITR, 0);
+	//e1000e_write(E1000_REG_ITR, 1000);
+	e1000e_write(E1000_REG_ITR, 0);
 	// TODO is disabled for now to simplify receive packet handling logic - else the interrupt handler needed to process multiple packets at once
 	
 	/* -- netdev.c :: e1000_configure */
@@ -241,13 +241,13 @@ void i219_init(pci_cfgspace_header_0_t *deviceCfgSpaceHeader)
 	uint64_t txBufferMemPhy;
 	txBufferMem = heap_alloc_contiguous(TX_DESC_COUNT * TX_BUFFER_SIZE, VM_R | VM_W, &txBufferMemPhy);
 	if(!txBufferMem)
-		panic("Could not allocate i219 transmit data buffer.");
+		panic("Could not allocate e1000e transmit data buffer.");
 	
 	// Allocate and initialize transmit descriptor buffer
 	uint64_t txDescriptorsPhy;
 	txDescriptors = heap_alloc_contiguous(TX_DESC_COUNT * sizeof(tx_desc_t), VM_R | VM_W, &txDescriptorsPhy);
 	if(!txDescriptors)
-		panic("Could not allocate i219 transmit descriptor buffer.");
+		panic("Could not allocate e1000e transmit descriptor buffer.");
 	for(int i = 0; i < TX_DESC_COUNT; ++i)
 	{
 		// Initialize descriptor
@@ -263,20 +263,20 @@ void i219_init(pci_cfgspace_header_0_t *deviceCfgSpaceHeader)
 	// Pass transmit descriptor buffer
 	trace_printf("txDescriptorsPhy = %012x\n", txDescriptorsPhy);
 	trace_printf("txBufferMemPhy = %012x\n", txBufferMemPhy);
-	i219_write(E1000_REG_TDBAH, txDescriptorsPhy >> 32);
-	i219_write(E1000_REG_TDBAL, txDescriptorsPhy & 0xFFFFFFFF);
-	i219_write(E1000_REG_TDLEN, TX_DESC_COUNT * sizeof(tx_desc_t));
-	i219_write(E1000_REG_TDH, 0);
-	i219_write(E1000_REG_TDT, 0);
+	e1000e_write(E1000_REG_TDBAH, txDescriptorsPhy >> 32);
+	e1000e_write(E1000_REG_TDBAL, txDescriptorsPhy & 0xFFFFFFFF);
+	e1000e_write(E1000_REG_TDLEN, TX_DESC_COUNT * sizeof(tx_desc_t));
+	e1000e_write(E1000_REG_TDH, 0);
+	e1000e_write(E1000_REG_TDT, 0);
 	txTail = 0;
 	
 	// Use only the first transmission queue
-	uint32_t tarc0 = i219_read(E1000_REG_TARC0);
+	uint32_t tarc0 = e1000e_read(E1000_REG_TARC0);
 	tarc0 |= 0x400; // Enable queue
-	i219_write(E1000_REG_TARC0, tarc0);
-	uint32_t tarc1 = i219_read(E1000_REG_TARC1);
+	e1000e_write(E1000_REG_TARC0, tarc0);
+	uint32_t tarc1 = e1000e_read(E1000_REG_TARC1);
 	tarc1 &= ~0x400; // Disable queue
-	i219_write(E1000_REG_TARC1, tarc1);
+	e1000e_write(E1000_REG_TARC1, tarc1);
 	
 	/* ---- e1000_setup_rctl */
 	/* ---- e1000_configure_rx */
@@ -285,13 +285,13 @@ void i219_init(pci_cfgspace_header_0_t *deviceCfgSpaceHeader)
 	uint64_t rxBufferMemPhy;
 	rxBufferMem = heap_alloc_contiguous(RX_DESC_COUNT * RX_BUFFER_SIZE, VM_R | VM_W, &rxBufferMemPhy);
 	if(!rxBufferMem)
-		panic("Could not allocate i219 receive data buffer.");
+		panic("Could not allocate e1000e receive data buffer.");
 	
 	// Allocate and initialize receive descriptor buffer
 	uint64_t rxDescriptorsPhy;
 	rxDescriptors = heap_alloc_contiguous(RX_DESC_COUNT * sizeof(rx_desc_t), VM_R | VM_W, &rxDescriptorsPhy);
 	if(!rxDescriptors)
-		panic("Could not allocate i219 receive descriptor buffer.");
+		panic("Could not allocate e1000e receive descriptor buffer.");
 	for(int i = 0; i < RX_DESC_COUNT; ++i)
 	{
 		// Initialize descriptor
@@ -303,18 +303,18 @@ void i219_init(pci_cfgspace_header_0_t *deviceCfgSpaceHeader)
 	// Pass receive descriptor buffer
 	trace_printf("rxDescriptorsPhy = %012x\n", rxDescriptorsPhy);
 	trace_printf("rxBufferMemPhy = %012x\n", rxBufferMemPhy);
-	i219_write(E1000_REG_RDBAH, rxDescriptorsPhy >> 32);
-	i219_write(E1000_REG_RDBAL, rxDescriptorsPhy & 0xFFFFFFFF);
-	i219_write(E1000_REG_RDLEN, RX_DESC_COUNT * sizeof(rx_desc_t));
-	i219_write(E1000_REG_RDH, 0);
-	i219_write(E1000_REG_RDT, RX_DESC_COUNT - 1);
+	e1000e_write(E1000_REG_RDBAH, rxDescriptorsPhy >> 32);
+	e1000e_write(E1000_REG_RDBAL, rxDescriptorsPhy & 0xFFFFFFFF);
+	e1000e_write(E1000_REG_RDLEN, RX_DESC_COUNT * sizeof(rx_desc_t));
+	e1000e_write(E1000_REG_RDH, 0);
+	e1000e_write(E1000_REG_RDT, RX_DESC_COUNT - 1);
 	rxTail = RX_DESC_COUNT - 1;
 	
 	// Disable TCP/IP checksum offloading
-	i219_write(E1000_REG_RXCSUM, 0x00000000);
+	e1000e_write(E1000_REG_RXCSUM, 0x00000000);
 	
 	// Enable receiver
-	uint32_t rctl = i219_read(E1000_REG_RCTL);
+	uint32_t rctl = e1000e_read(E1000_REG_RCTL);
 	rctl |= E1000_RCTL_EN; // EN (Receiver Enable)
 	rctl |= E1000_RCTL_SBP; // SBP (Store Bad Packets)
 	//rctl |= 0x00000020; // LPE (Long Packet Reception Enable)   -> MTU is set to 1522, thus we don't use this feature
@@ -325,10 +325,10 @@ void i219_init(pci_cfgspace_header_0_t *deviceCfgSpaceHeader)
 	rctl |= E1000_RCTL_SECRC; // SECRC (Strip Ethernet CRC)
 	//rctl |= E1000_RCTL_MPE; // Promiscuous mode   -> for testing only!
 	//rctl |= E1000_RCTL_UPE; // Promiscuous mode   -> for testing only!
-	i219_write(E1000_REG_RCTL, rctl);
+	e1000e_write(E1000_REG_RCTL, rctl);
 	
 	// Enable transmitter
-	uint32_t tctl = i219_read(E1000_REG_TCTL);
+	uint32_t tctl = e1000e_read(E1000_REG_TCTL);
 	tctl |= E1000_TCTL_EN; // EN (Transmitter Enable)
 	tctl |= E1000_TCTL_PSP; // PSP (Pad Short Packets)
 	/*tctl &= ~E1000_TCTL_CT;
@@ -336,7 +336,7 @@ void i219_init(pci_cfgspace_header_0_t *deviceCfgSpaceHeader)
 	/*tctl &= ~E1000_TCTL_COLD;
 	tctl |= 0x0003F000; // 64-byte Collision Distance*/
 	tctl |= E1000_TCTL_RTLC; // RTLC (Re-transmit on Late Collision)
-	i219_write(E1000_REG_TCTL, tctl);
+	e1000e_write(E1000_REG_TCTL, tctl);
 	
 	// TODO extended status?
 	
@@ -361,26 +361,26 @@ void i219_init(pci_cfgspace_header_0_t *deviceCfgSpaceHeader)
 	/* -- e1000e_trigger_lsc */
 	
 	// Enable receive interrupt
-	i219_write(E1000_REG_IMS, E1000_IMS_RXT0 | E1000_IMS_RXDMT0);
+	e1000e_write(E1000_REG_IMS, E1000_IMS_RXT0 | E1000_IMS_RXDMT0);
 	
 	// Return hardware control
 	// TODO The e1000e driver does not do this?!
-	/*ctrlExt = i219_read(E1000_REG_CTRL_EXT);
+	/*ctrlExt = e1000e_read(E1000_REG_CTRL_EXT);
 	ctrlExt &= ~E1000_CTRL_EXT_DRV_LOAD;
-	i219_write(E1000_REG_CTRL_EXT, ctrlExt);*/
+	e1000e_write(E1000_REG_CTRL_EXT, ctrlExt);*/
 	
 	initialized = true;
 	trace_printf("Network driver initialized.\n");
 }
 
-void i219_get_mac_address(uint8_t *macBuffer)
+void e1000e_get_mac_address(uint8_t *macBuffer)
 {
 	// Copy MAC address
 	for(int i = 0; i < 6; ++i)
 		macBuffer[i] = macAddress[i];
 }
 
-int debugRegs[] = {
+static int debugRegs[] = {
 	0x04000,	/* CRC Error Count - R/clr */
 	0x04004,	/* Alignment Error Count - R/clr */
 	0x04008,	/* Symbol Error Count - R/clr */
@@ -467,38 +467,38 @@ static void debug_regs()
 	for(int i = 0; i < cnt / 6; ++i)
 	{
 		trace_printf("%08x %08x %08x %08x %08x %08x\n",
-			i219_read(debugRegs[6 * i + 0]),
-			i219_read(debugRegs[6 * i + 1]),
-			i219_read(debugRegs[6 * i + 2]),
-			i219_read(debugRegs[6 * i + 3]),
-			i219_read(debugRegs[6 * i + 4]),
-			i219_read(debugRegs[6 * i + 5])
+			e1000e_read(debugRegs[6 * i + 0]),
+			e1000e_read(debugRegs[6 * i + 1]),
+			e1000e_read(debugRegs[6 * i + 2]),
+			e1000e_read(debugRegs[6 * i + 3]),
+			e1000e_read(debugRegs[6 * i + 4]),
+			e1000e_read(debugRegs[6 * i + 5])
 		);
 	}*/
 	
-	trace_printf("-- Device status: %08x\n", i219_read(E1000_REG_STATUS));
-	trace_printf("   CTRL = %08x\n", i219_read(E1000_REG_CTRL));
-	trace_printf("   RCTL = %08x\n", i219_read(E1000_REG_RCTL));
-	trace_printf("   RDBAH = %08x\n", i219_read(E1000_REG_RDBAH));
-	trace_printf("   RDBAL = %08x\n", i219_read(E1000_REG_RDBAL));
-	trace_printf("   RDH = %08x\n", i219_read(E1000_REG_RDH));
-	trace_printf("   RDT = %08x\n", i219_read(E1000_REG_RDT));
-	trace_printf("   RFCTL = %08x\n", i219_read(E1000_REG_RFCTL));
-	trace_printf("   RXCSUM = %08x\n", i219_read(E1000_REG_RXCSUM));
-	trace_printf("   MRQC = %08x\n", i219_read(E1000_REG_MRQC));
-	trace_printf("   TCTL = %08x\n", i219_read(E1000_REG_TCTL));
-	trace_printf("   TDBAH = %08x\n", i219_read(E1000_REG_TDBAH));
-	trace_printf("   TDBAL = %08x\n", i219_read(E1000_REG_TDBAL));
-	trace_printf("   TDH = %08x\n", i219_read(E1000_REG_TDH));
-	trace_printf("   TDT = %08x\n", i219_read(E1000_REG_TDT));
-	trace_printf("   TARC0 = %08x\n", i219_read(E1000_REG_TARC0));
-	trace_printf("   TARC1 = %08x\n", i219_read(E1000_REG_TARC1));
-	trace_printf("   IMS = %08x\n", i219_read(E1000_REG_IMS));
+	trace_printf("-- Device status: %08x\n", e1000e_read(E1000_REG_STATUS));
+	trace_printf("   CTRL = %08x\n", e1000e_read(E1000_REG_CTRL));
+	trace_printf("   RCTL = %08x\n", e1000e_read(E1000_REG_RCTL));
+	trace_printf("   RDBAH = %08x\n", e1000e_read(E1000_REG_RDBAH));
+	trace_printf("   RDBAL = %08x\n", e1000e_read(E1000_REG_RDBAL));
+	trace_printf("   RDH = %08x\n", e1000e_read(E1000_REG_RDH));
+	trace_printf("   RDT = %08x\n", e1000e_read(E1000_REG_RDT));
+	trace_printf("   RFCTL = %08x\n", e1000e_read(E1000_REG_RFCTL));
+	trace_printf("   RXCSUM = %08x\n", e1000e_read(E1000_REG_RXCSUM));
+	trace_printf("   MRQC = %08x\n", e1000e_read(E1000_REG_MRQC));
+	trace_printf("   TCTL = %08x\n", e1000e_read(E1000_REG_TCTL));
+	trace_printf("   TDBAH = %08x\n", e1000e_read(E1000_REG_TDBAH));
+	trace_printf("   TDBAL = %08x\n", e1000e_read(E1000_REG_TDBAL));
+	trace_printf("   TDH = %08x\n", e1000e_read(E1000_REG_TDH));
+	trace_printf("   TDT = %08x\n", e1000e_read(E1000_REG_TDT));
+	trace_printf("   TARC0 = %08x\n", e1000e_read(E1000_REG_TARC0));
+	trace_printf("   TARC1 = %08x\n", e1000e_read(E1000_REG_TARC1));
+	trace_printf("   IMS = %08x\n", e1000e_read(E1000_REG_IMS));
 	
 	trace_printf("\n");
 }
 
-void i219_send(uint8_t *packet, int packetLength)
+void e1000e_send(uint8_t *packet, int packetLength)
 {
 	//trace_printf("Sending packet with length %d\n", packetLength);
 	
@@ -528,7 +528,7 @@ void i219_send(uint8_t *packet, int packetLength)
 	++txTail;
 	if(txTail == TX_DESC_COUNT)
 		txTail = 0;
-	i219_write(E1000_REG_TDT, txTail);
+	e1000e_write(E1000_REG_TDT, txTail);
 	
 	//trace_printf("Passing packet to device done.\n");
 	
@@ -537,7 +537,7 @@ void i219_send(uint8_t *packet, int packetLength)
 
 // Processes one received packet.
 // TODO use ITR (interrupt throttling register) to fire interrupts for multiple packets at once (less interrupts)
-static void i219_receive()
+static void e1000e_receive()
 {
 	raw_spinlock_lock(&receiveLock);
 	
@@ -564,8 +564,8 @@ static void i219_receive()
 			// Errors?
 			if(rxDescriptors[newRxTail].errors)
 				trace_printf("Error byte in descriptor: %02x\n", rxDescriptors[newRxTail].errors);
-			else if(packetLength > I219_MTU)
-				panic("Received packet size %d exceeds assumed MTU %d!\n", packetLength, I219_MTU);
+			else if(packetLength > E1000E_MTU)
+				panic("Received packet size %d exceeds assumed MTU %d!\n", packetLength, E1000E_MTU);
 			else
 			{
 				// Allocate a receive buffer list entry
@@ -600,7 +600,7 @@ static void i219_receive()
 			
 			// Update receive tail
 			rxTail = newRxTail;
-			i219_write(E1000_REG_RDT, rxTail);
+			e1000e_write(E1000_REG_RDT, rxTail);
 		}
 		else
 			break; // No more received packets
@@ -609,7 +609,7 @@ static void i219_receive()
 	raw_spinlock_unlock(&receiveLock);
 }
 
-int i219_next_received_packet(uint8_t *packetBuffer)
+int e1000e_next_received_packet(uint8_t *packetBuffer)
 {
 	// Any packet available?
 	if(!receivedPacketsQueueStart)
@@ -636,28 +636,28 @@ int i219_next_received_packet(uint8_t *packetBuffer)
 	return packetLength;
 }
 
-bool i219_handle_interrupt(cpu_state_t *state)
+bool e1000e_handle_interrupt(cpu_state_t *state)
 {
 	// Ensure initialization is done
 	if(!initialized)
 		return false;
 	
 	// Read interrupt cause register
-	uint32_t icr = i219_read(E1000_REG_ICR);
+	uint32_t icr = e1000e_read(E1000_REG_ICR);
 	if(!icr)
 	{
-		//trace_printf("Interrupt not caused by i219\n", icr);
+		//trace_printf("Interrupt not caused by e1000e\n", icr);
 		return false;
 	}
 	
 	// Handle set interrupts
-	//trace_printf("Intel i219 interrupt! ICR: %08x\n", icr);
+	//trace_printf("Intel e1000e interrupt! ICR: %08x\n", icr);
 	if(icr & E1000_ICR_RXT0)
 	{
 		// Receive timer expired, handle received packets
-		i219_receive();
+		e1000e_receive();
 	}
 	else if(icr == 0x00000002) // TODO only for debugging - needed?
-		i219_write(E1000_REG_ICR, 0x00000002);
+		e1000e_write(E1000_REG_ICR, 0x00000002);
 	return true;
 }
