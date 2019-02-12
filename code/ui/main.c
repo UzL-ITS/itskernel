@@ -16,6 +16,7 @@ Kernel UI process main file.
 #include <stdint.h>
 #include <itslwip.h>
 #include <internal/terminal/terminal.h>
+#include "dump.h"
 
 
 /* VARIABLES */
@@ -25,7 +26,7 @@ const color_t COLOR_CURRENT_DIRECTORY = { 0, 200, 0 };
 const color_t COLOR_ERROR = { 200, 0, 0 };
 
 // Network configuration.
-/*
+//*
 static char serverIpAddress[] = "141.83.62.232";
 static char ipAddress[] = "141.83.62.44";
 static char subnetMask[] = "255.255.255.0";
@@ -598,14 +599,10 @@ void main()
 		{
 			if(argCount < 2)
 			{
-				
-				
 				// Print help text for sub commands
 				printf_locked("Supported commands:\n");
 				printf_locked("    dump [file name]      Generate list of available physical pages and store it in the given file\n");
 				printf_locked("    showmap [file name]   Render map of physical memory\n");
-				
-				
 			}
 			else if(strcmp(args[1], "dump") == 0)
 			{
@@ -635,7 +632,7 @@ void main()
 					
 					// Generate dump
 					printf_locked("Running dump...");
-					sys_dump(0, buffer);
+					create_dump(DUMP_PMM_STATE, buffer);
 					printf_locked("done.\n");
 				}
 			}

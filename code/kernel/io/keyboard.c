@@ -35,7 +35,7 @@ static void _handle_key_press(cpu_state_t *UNUSED_state)
 {
 	// Retrieve scan code
 	uint8_t scanCode = inb(PS2_DATA_PORT);
-	trace_printf("Scan code 0x%02x\n", scanCode);
+	//trace_printf("Scan code 0x%02x\n", scanCode);
 	
 	// Check scan code type
 	vkey_t keyCode = VKEY_INVALID;
@@ -165,23 +165,6 @@ void keyboard_init()
 		_input_wait();
 		outb(PS2_DATA_PORT, 0x64); // Enable port 1, disable IRQs
 		pit_mdelay(2);
-		
-		
-		outb(PS2_CONFIG_PORT, 0x20);
-		pit_mdelay(2);
-		_output_wait();
-		trace_printf("New configuration byte: %02x\n", inb(PS2_DATA_PORT));
-		
-		//TODO: Bei neuem NUC wird Config-Byte einmal mit +0x01 erhöht (bei steigender flanke), bei altem gar nicht
-		//-> Polling sollte dort gar nicht funktionieren
-		//TEST
-		/*pit_mdelay(2);
-		while(1)
-		{
-			trace_printf("%02x %02x\n", inb(PS2_STATUS_PORT), inb(PS2_DATA_PORT));
-			pit_mdelay(500);
-		}
-		halt_forever();*/
 	}
 	else
 	{

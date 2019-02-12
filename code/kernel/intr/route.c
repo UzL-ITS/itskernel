@@ -40,7 +40,7 @@ void intr_dispatch(cpu_state_t *state)
   rw_rlock(&intr_route_lock);
   list_t *handler_list = &intr_handlers[state->id];
   if (handler_list->size == 0)
-    panic("unhandled interrupt %d at %0#18x", state->id, state->rip);
+    trace_printf("WARNING: Unhandled interrupt %d at %0#18x\n", state->id, state->rip);
 
   /* call all the handlers */
   list_for_each(handler_list, node)
