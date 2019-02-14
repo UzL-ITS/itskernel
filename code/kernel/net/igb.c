@@ -3,7 +3,7 @@ Intel igb (I210/I211) ethernet driver.
 */
 
 #include <net/igb.h>
-#include <net/e1000_defs.h>
+#include <net/igb_defs.h>
 #include <trace/trace.h>
 #include <mm/mmio.h>
 #include <panic/panic.h>
@@ -12,6 +12,7 @@ Intel igb (I210/I211) ethernet driver.
 #include <mm/heap.h>
 #include <cpu/pause.h>
 #include <lock/raw_spinlock.h>
+#include <time/pit.h>
 
 // Maximum Transmission Unit (this value is slightly arbitrary, it matches the value used in the user-space LWIP wrapper).
 #define IGB_MTU 1522
@@ -34,8 +35,8 @@ typedef struct
 	// Packet reception errors.
 	uint8_t errors;
 	
-	// Unused.
-	uint16_t special;
+	// VLAN tag.
+	uint16_t vlan;
 } __attribute__((__packed__)) rx_desc_t;
 
 // Structure of transmit descriptors.
@@ -56,11 +57,11 @@ typedef struct
 	// Packet transmission status.
 	uint8_t status;
 	
-	// Checksum start field, unused.
-	uint8_t css;
+	// Reserved.
+	uint8_t reserved;
 	
-	// Unused.
-	uint16_t special;
+	// VLAN tag.
+	uint16_t vlan;
 } __attribute__((__packed__)) tx_desc_t;
 
 // Structure of a receive packet list entry.
@@ -123,6 +124,9 @@ static bool initialized = false;
 static raw_spinlock_t receiveLock = RAW_SPINLOCK_UNLOCKED;
 
 
+// Helper function for debugging. TODO remove
+static void debug_regs();
+
 // Reads the given device register using MMIO.
 static uint32_t igb_read(e1000_register_t reg)
 {
@@ -150,8 +154,18 @@ void igb_init(pci_cfgspace_header_0_t *deviceCfgSpaceHeader)
 	commandRegister |= 0x07; // Make sure memory/IO space are also enabled
 	deviceCfgSpaceHeader->commonHeader.command = commandRegister;
 	
+	// Perform software reset
+	uint32_t ctrl = igb_read(IGB_REG_CTRL);
+	igb_write(IGB_REG_CTRL, ctrl | IGB_CTRL_RST);
+	pit_mdelay(5);
+	uint32_t status;
+	do
+		status = igb_read(IGB_REG_STATUS);
+	while(!(status & IGB_STATUS_PF_RST_DONE));
+	trace_printf("IGB software reset completed\n");
+	
 	// Read MAC address
-	uint32_t macLow = igb_read(E1000_REG_RAL);
+	uint32_t macLow = igb_read(IGB_REG_RAL);
 	if(macLow != 0x00000000)
 	{
 		// MAC can be read from RAL[0]/RAH[0] MMIO directly
@@ -159,7 +173,7 @@ void igb_init(pci_cfgspace_header_0_t *deviceCfgSpaceHeader)
 		macAddress[1] = (macLow >> 8) & 0xFF;
 		macAddress[2] = (macLow >> 16) & 0xFF;
 		macAddress[3] = (macLow >> 24) & 0xFF;
-		uint32_t macHigh = igb_read(E1000_REG_RAH);
+		uint32_t macHigh = igb_read(IGB_REG_RAH);
 		macAddress[4] = macHigh & 0xFF;
 		macAddress[5] = (macHigh >> 8) & 0xFF;
 	}
@@ -174,69 +188,46 @@ void igb_init(pci_cfgspace_header_0_t *deviceCfgSpaceHeader)
 		macAddress[4],
 		macAddress[5]
 	);
-	trace_printf("INIT Device status: %08x\n", igb_read(E1000_REG_STATUS));
-	trace_printf("     CTRL = %08x\n", igb_read(E1000_REG_CTRL));
-	trace_printf("     RCTL = %08x\n", igb_read(E1000_REG_RCTL));
-	trace_printf("     RDBAH = %08x\n", igb_read(E1000_REG_RDBAH));
-	trace_printf("     RDBAL = %08x\n", igb_read(E1000_REG_RDBAL));
-	trace_printf("     RDH = %08x\n", igb_read(E1000_REG_RDH));
-	trace_printf("     RDT = %08x\n", igb_read(E1000_REG_RDT));
-	trace_printf("     PBA = %08x\n", igb_read(E1000_REG_PBA));
-	trace_printf("     PBS = %08x\n", igb_read(E1000_REG_PBS));
-	trace_printf("     RFCTL = %08x\n", igb_read(E1000_REG_RFCTL));
-	trace_printf("     RXCSUM = %08x\n", igb_read(E1000_REG_RXCSUM));
-	trace_printf("     MRQC = %08x\n", igb_read(E1000_REG_MRQC));
-	trace_printf("     TCTL = %08x\n", igb_read(E1000_REG_TCTL));
-	
-	// TODO needed?
-	uint32_t status;
-	//do
-		status = igb_read(E1000_REG_STATUS);
-	//while(!(status & E1000_STATUS_LAN_INIT_DONE));
-	igb_write(E1000_REG_STATUS, status & (~E1000_STATUS_LAN_INIT_DONE));
-	//do
-		status = igb_read(E1000_REG_STATUS);
-	//while(!(status & E1000_STATUS_PHYRA));
-	igb_write(E1000_REG_STATUS, status & (~E1000_STATUS_PHYRA));
-	
-	/* netdev.c :: igb_open */
-	
-	/* -- netdev.c :: igb_reset */
-	
-	/* ---- ich8lan.c :: e1000_reset_hw_ich8lan */
+	trace_printf("INIT Device status: %08x\n", igb_read(IGB_REG_STATUS));
+	trace_printf("     CTRL = %08x\n", igb_read(IGB_REG_CTRL));
+	trace_printf("     RCTL = %08x\n", igb_read(IGB_REG_RCTL));
+	trace_printf("     RDBAH = %08x\n", igb_read(IGB_REG_RDBAH));
+	trace_printf("     RDBAL = %08x\n", igb_read(IGB_REG_RDBAL));
+	trace_printf("     RDH = %08x\n", igb_read(IGB_REG_RDH));
+	trace_printf("     RDT = %08x\n", igb_read(IGB_REG_RDT));
+	trace_printf("     PBA = %08x\n", igb_read(IGB_REG_PBA));
+	trace_printf("     PBS = %08x\n", igb_read(IGB_REG_PBS));
+	trace_printf("     RFCTL = %08x\n", igb_read(IGB_REG_RFCTL));
+	trace_printf("     RXCSUM = %08x\n", igb_read(IGB_REG_RXCSUM));
+	trace_printf("     MRQC = %08x\n", igb_read(IGB_REG_MRQC));
+	trace_printf("     TCTL = %08x\n", igb_read(IGB_REG_TCTL));
 	
 	// Disable all interrupts
-	igb_write(E1000_REG_IMC, 0xFFFFFFFF);
+	igb_write(IGB_REG_IMC, 0xFFFFFFFF);
 	
 	// Clear pending interrupts
-	igb_read(E1000_REG_ICR);
+	igb_read(IGB_REG_ICR);
 	
 	// Get hardware control from firmware
-	/*uint32_t ctrlExt = igb_read(E1000_REG_CTRL_EXT);
-	ctrlExt |= E1000_CTRL_EXT_DRV_LOAD;
-	igb_write(E1000_REG_CTRL_EXT, ctrlExt);*/
-	
-	/* ---- ich8lan.c :: e1000_init_hw_ich8lan */
+	/*uint32_t ctrlExt = igb_read(IGB_REG_CTRL_EXT);
+	ctrlExt |= IGB_CTRL_EXT_DRV_LOAD;
+	igb_write(IGB_REG_CTRL_EXT, ctrlExt);*/
 	
 	// Clear multicast table array
-	for(int i = 0; i < 32; ++i)
-		igb_write(E1000_REG_MTA + 4 * i, 0x00000000);
+	for(int i = 0; i < 128; ++i)
+		igb_write(IGB_REG_MTA + 4 * i, 0x00000000);
 	
 	// Setup link
-	/*uint32_t ctrl = igb_read(E1000_REG_CTRL);
-	ctrl |= E1000_CTRL_SLU;
-	igb_write(E1000_REG_CTRL, ctrl);*/
+	ctrl = igb_read(IGB_REG_CTRL);
+	ctrl |= IGB_CTRL_SLU;
+	igb_write(IGB_REG_CTRL, ctrl);
 	
 	// Interrupt throttling: Wait 1000 * 256ns = 256us between interrupts
 	// TODO adjust this for performance optimization
-	//igb_write(E1000_REG_ITR, 1000);
-	igb_write(E1000_REG_ITR, 0);
-	// TODO is disabled for now to simplify receive packet handling logic - else the interrupt handler needed to process multiple packets at once
-	
-	/* -- netdev.c :: e1000_configure */
-	
-	/* ---- e1000_configure_tx */
-	
+	//igb_write(IGB_REG_ITR, 1000);
+	//igb_write(IGB_REG_ITR, 0);
+	// TODO this has changed for IGB devices
+
 	// Allocate transmit data buffer
 	uint64_t txBufferMemPhy;
 	txBufferMem = heap_alloc_contiguous(TX_DESC_COUNT * TX_BUFFER_SIZE, VM_R | VM_W, &txBufferMemPhy);
@@ -256,30 +247,25 @@ void igb_init(pci_cfgspace_header_0_t *deviceCfgSpaceHeader)
 		currDesc->length = 0;
 		currDesc->status = 0;
 		currDesc->cso = 0;
-		currDesc->css = 0;
-		currDesc->special = 0;
+		currDesc->reserved = 0;
+		currDesc->vlan = 0;
 	}
 	
 	// Pass transmit descriptor buffer
 	trace_printf("txDescriptorsPhy = %012x\n", txDescriptorsPhy);
 	trace_printf("txBufferMemPhy = %012x\n", txBufferMemPhy);
-	igb_write(E1000_REG_TDBAH, txDescriptorsPhy >> 32);
-	igb_write(E1000_REG_TDBAL, txDescriptorsPhy & 0xFFFFFFFF);
-	igb_write(E1000_REG_TDLEN, TX_DESC_COUNT * sizeof(tx_desc_t));
-	igb_write(E1000_REG_TDH, 0);
-	igb_write(E1000_REG_TDT, 0);
+	igb_write(IGB_REG_TDBAH, txDescriptorsPhy >> 32);
+	igb_write(IGB_REG_TDBAL, txDescriptorsPhy & 0xFFFFFFFF);
+	igb_write(IGB_REG_TDLEN, TX_DESC_COUNT * sizeof(tx_desc_t));
+	igb_write(IGB_REG_TDH, 0);
+	igb_write(IGB_REG_TDT, 0);
 	txTail = 0;
 	
 	// Use only the first transmission queue
-	uint32_t tarc0 = igb_read(E1000_REG_TARC0);
-	tarc0 |= 0x400; // Enable queue
-	igb_write(E1000_REG_TARC0, tarc0);
-	uint32_t tarc1 = igb_read(E1000_REG_TARC1);
-	tarc1 &= ~0x400; // Disable queue
-	igb_write(E1000_REG_TARC1, tarc1);
-	
-	/* ---- e1000_setup_rctl */
-	/* ---- e1000_configure_rx */
+	uint32_t txdctl0 = igb_read(IGB_REG_TXDCTL0);
+	txdctl0 |= 0x02000000; // Enable queue
+	igb_write(IGB_REG_TXDCTL0, txdctl0);
+	// Others are disabled by default
 	
 	// Allocate receive data buffer
 	uint64_t rxBufferMemPhy;
@@ -303,40 +289,45 @@ void igb_init(pci_cfgspace_header_0_t *deviceCfgSpaceHeader)
 	// Pass receive descriptor buffer
 	trace_printf("rxDescriptorsPhy = %012x\n", rxDescriptorsPhy);
 	trace_printf("rxBufferMemPhy = %012x\n", rxBufferMemPhy);
-	igb_write(E1000_REG_RDBAH, rxDescriptorsPhy >> 32);
-	igb_write(E1000_REG_RDBAL, rxDescriptorsPhy & 0xFFFFFFFF);
-	igb_write(E1000_REG_RDLEN, RX_DESC_COUNT * sizeof(rx_desc_t));
-	igb_write(E1000_REG_RDH, 0);
-	igb_write(E1000_REG_RDT, RX_DESC_COUNT - 1);
+	igb_write(IGB_REG_RDBAH, rxDescriptorsPhy >> 32);
+	igb_write(IGB_REG_RDBAL, rxDescriptorsPhy & 0xFFFFFFFF);
+	igb_write(IGB_REG_RDLEN, RX_DESC_COUNT * sizeof(rx_desc_t));
+	igb_write(IGB_REG_RDH, 0);
+	igb_write(IGB_REG_RDT, RX_DESC_COUNT - 1);
 	rxTail = RX_DESC_COUNT - 1;
 	
+	// Use only the first receive queue
+	uint32_t rxdctl0 = igb_read(IGB_REG_RXDCTL0);
+	rxdctl0 |= 0x02000000; // Enable queue
+	igb_write(IGB_REG_RXDCTL0, rxdctl0);
+	// Others are disabled by default
+	
 	// Disable TCP/IP checksum offloading
-	igb_write(E1000_REG_RXCSUM, 0x00000000);
+	igb_write(IGB_REG_RXCSUM, 0x00000000);
 	
 	// Enable receiver
-	uint32_t rctl = igb_read(E1000_REG_RCTL);
-	rctl |= E1000_RCTL_EN; // EN (Receiver Enable)
-	rctl |= E1000_RCTL_SBP; // SBP (Store Bad Packets)
+	uint32_t rctl = igb_read(IGB_REG_RCTL);
+	rctl |= IGB_RCTL_EN; // EN (Receiver Enable)
+	rctl |= IGB_RCTL_SBP; // SBP (Store Bad Packets)
 	//rctl |= 0x00000020; // LPE (Long Packet Reception Enable)   -> MTU is set to 1522, thus we don't use this feature
-	rctl |= E1000_RCTL_BAM; // BAM (Broadcast Accept Mode)
-	rctl &= ~E1000_RCTL_SZ_4096;
-	rctl |= E1000_RCTL_SZ_2048; // BSIZE = 2048 (Receive Buffer Size)
-	rctl &= ~E1000_RCTL_BSEX;
-	rctl |= E1000_RCTL_SECRC; // SECRC (Strip Ethernet CRC)
-	//rctl |= E1000_RCTL_MPE; // Promiscuous mode   -> for testing only!
-	//rctl |= E1000_RCTL_UPE; // Promiscuous mode   -> for testing only!
-	igb_write(E1000_REG_RCTL, rctl);
+	rctl |= IGB_RCTL_BAM; // BAM (Broadcast Accept Mode)
+	rctl &= ~IGB_RCTL_SZ_256;
+	rctl |= IGB_RCTL_SZ_2048; // BSIZE = 2048 (Receive Buffer Size)
+	rctl |= IGB_RCTL_SECRC; // SECRC (Strip Ethernet CRC)
+	rctl |= IGB_RCTL_MPE; // Promiscuous mode   -> for testing only!
+	rctl |= IGB_RCTL_UPE; // Promiscuous mode   -> for testing only!
+	igb_write(IGB_REG_RCTL, rctl);
 	
 	// Enable transmitter
-	uint32_t tctl = igb_read(E1000_REG_TCTL);
-	tctl |= E1000_TCTL_EN; // EN (Transmitter Enable)
-	tctl |= E1000_TCTL_PSP; // PSP (Pad Short Packets)
-	/*tctl &= ~E1000_TCTL_CT;
+	uint32_t tctl = igb_read(IGB_REG_TCTL);
+	tctl |= IGB_TCTL_EN; // EN (Transmitter Enable)
+	tctl |= IGB_TCTL_PSP; // PSP (Pad Short Packets)
+	/*tctl &= ~IGB_TCTL_CT;
 	tctl |= 0x000000F0; // 16 retries Collision Threshold*/
-	/*tctl &= ~E1000_TCTL_COLD;
+	/*tctl &= ~IGB_TCTL_COLD;
 	tctl |= 0x0003F000; // 64-byte Collision Distance*/
-	tctl |= E1000_TCTL_RTLC; // RTLC (Re-transmit on Late Collision)
-	igb_write(E1000_REG_TCTL, tctl);
+	tctl |= IGB_TCTL_RTLC; // RTLC (Re-transmit on Late Collision)
+	igb_write(IGB_REG_TCTL, tctl);
 	
 	// TODO extended status?
 	
@@ -356,18 +347,15 @@ void igb_init(pci_cfgspace_header_0_t *deviceCfgSpaceHeader)
 		bufferEntry->next = receivedPacketsBufferListStart;
 		receivedPacketsBufferListStart = bufferEntry;
 	}
-	
-	/* -- e1000_irq_enable */
-	/* -- igb_trigger_lsc */
-	
+
 	// Enable receive interrupt
-	igb_write(E1000_REG_IMS, E1000_IMS_RXT0 | E1000_IMS_RXDMT0);
+	igb_write(IGB_REG_IMS, 0x00000080);
 	
 	// Return hardware control
 	// TODO The igb driver does not do this?!
-	/*ctrlExt = igb_read(E1000_REG_CTRL_EXT);
-	ctrlExt &= ~E1000_CTRL_EXT_DRV_LOAD;
-	igb_write(E1000_REG_CTRL_EXT, ctrlExt);*/
+	/*ctrlExt = igb_read(IGB_REG_CTRL_EXT);
+	ctrlExt &= ~IGB_CTRL_EXT_DRV_LOAD;
+	igb_write(IGB_REG_CTRL_EXT, ctrlExt);*/
 	
 	initialized = true;
 	trace_printf("Network driver initialized.\n");
@@ -476,24 +464,31 @@ static void debug_regs()
 		);
 	}*/
 	
-	trace_printf("-- Device status: %08x\n", igb_read(E1000_REG_STATUS));
-	trace_printf("   CTRL = %08x\n", igb_read(E1000_REG_CTRL));
-	trace_printf("   RCTL = %08x\n", igb_read(E1000_REG_RCTL));
-	trace_printf("   RDBAH = %08x\n", igb_read(E1000_REG_RDBAH));
-	trace_printf("   RDBAL = %08x\n", igb_read(E1000_REG_RDBAL));
-	trace_printf("   RDH = %08x\n", igb_read(E1000_REG_RDH));
-	trace_printf("   RDT = %08x\n", igb_read(E1000_REG_RDT));
-	trace_printf("   RFCTL = %08x\n", igb_read(E1000_REG_RFCTL));
-	trace_printf("   RXCSUM = %08x\n", igb_read(E1000_REG_RXCSUM));
-	trace_printf("   MRQC = %08x\n", igb_read(E1000_REG_MRQC));
-	trace_printf("   TCTL = %08x\n", igb_read(E1000_REG_TCTL));
-	trace_printf("   TDBAH = %08x\n", igb_read(E1000_REG_TDBAH));
-	trace_printf("   TDBAL = %08x\n", igb_read(E1000_REG_TDBAL));
-	trace_printf("   TDH = %08x\n", igb_read(E1000_REG_TDH));
-	trace_printf("   TDT = %08x\n", igb_read(E1000_REG_TDT));
-	trace_printf("   TARC0 = %08x\n", igb_read(E1000_REG_TARC0));
-	trace_printf("   TARC1 = %08x\n", igb_read(E1000_REG_TARC1));
-	trace_printf("   IMS = %08x\n", igb_read(E1000_REG_IMS));
+	trace_printf("-- Device status: %08x\n", igb_read(IGB_REG_STATUS));
+	trace_printf("   CTRL = %08x\n", igb_read(IGB_REG_CTRL));
+	trace_printf("   RCTL = %08x\n", igb_read(IGB_REG_RCTL));
+	trace_printf("   RDBAH = %08x\n", igb_read(IGB_REG_RDBAH));
+	trace_printf("   RDBAL = %08x\n", igb_read(IGB_REG_RDBAL));
+	trace_printf("   RDH = %08x\n", igb_read(IGB_REG_RDH));
+	trace_printf("   RDT = %08x\n", igb_read(IGB_REG_RDT));
+	trace_printf("   RFCTL = %08x\n", igb_read(IGB_REG_RFCTL));
+	trace_printf("   RXCSUM = %08x\n", igb_read(IGB_REG_RXCSUM));
+	trace_printf("   MRQC = %08x\n", igb_read(IGB_REG_MRQC));
+	trace_printf("   TCTL = %08x\n", igb_read(IGB_REG_TCTL));
+	trace_printf("   TDBAH = %08x\n", igb_read(IGB_REG_TDBAH));
+	trace_printf("   TDBAL = %08x\n", igb_read(IGB_REG_TDBAL));
+	trace_printf("   TDH = %08x\n", igb_read(IGB_REG_TDH));
+	trace_printf("   TDT = %08x\n", igb_read(IGB_REG_TDT));
+	trace_printf("   TXDCTL0 = %08x\n", igb_read(IGB_REG_TXDCTL0));
+	trace_printf("   TXDCTL1 = %08x\n", igb_read(IGB_REG_TXDCTL1));
+	trace_printf("   TXDCTL2 = %08x\n", igb_read(IGB_REG_TXDCTL2));
+	trace_printf("   TXDCTL3 = %08x\n", igb_read(IGB_REG_TXDCTL3));
+	trace_printf("   RXDCTL0 = %08x\n", igb_read(IGB_REG_RXDCTL0));
+	trace_printf("   RXDCTL1 = %08x\n", igb_read(IGB_REG_RXDCTL1));
+	trace_printf("   RXDCTL2 = %08x\n", igb_read(IGB_REG_RXDCTL2));
+	trace_printf("   RXDCTL3 = %08x\n", igb_read(IGB_REG_RXDCTL3));
+	//trace_printf("   TARC1 = %08x\n", igb_read(IGB_REG_TARC1));
+	trace_printf("   IMS = %08x\n", igb_read(IGB_REG_IMS));
 	
 	trace_printf("\n");
 }
@@ -521,14 +516,14 @@ void igb_send(uint8_t *packet, int packetLength)
 	desc->command = 0x8 | 0x2 | 0x1; // RS (Report Status), IFCS (Insert FCS), EOP (End Of Packet)
 	desc->cso = 0;
 	desc->status = 0;
-	desc->css = 0;
-	desc->special = 0;
+	desc->reserved = 0;
+	desc->vlan = 0;
 	
 	// Update tail
 	++txTail;
 	if(txTail == TX_DESC_COUNT)
 		txTail = 0;
-	igb_write(E1000_REG_TDT, txTail);
+	igb_write(IGB_REG_TDT, txTail);
 	
 	//trace_printf("Passing packet to device done.\n");
 	
@@ -600,7 +595,7 @@ static void igb_receive()
 			
 			// Update receive tail
 			rxTail = newRxTail;
-			igb_write(E1000_REG_RDT, rxTail);
+			igb_write(IGB_REG_RDT, rxTail);
 		}
 		else
 			break; // No more received packets
@@ -643,7 +638,7 @@ bool igb_handle_interrupt(cpu_state_t *state)
 		return false;
 	
 	// Read interrupt cause register
-	uint32_t icr = igb_read(E1000_REG_ICR);
+	uint32_t icr = igb_read(IGB_REG_ICR);
 	if(!icr)
 	{
 		//trace_printf("Interrupt not caused by igb\n", icr);
@@ -652,12 +647,12 @@ bool igb_handle_interrupt(cpu_state_t *state)
 	
 	// Handle set interrupts
 	//trace_printf("Intel igb interrupt! ICR: %08x\n", icr);
-	if(icr & E1000_ICR_RXT0)
+	if(icr & 0x00000080)
 	{
 		// Receive timer expired, handle received packets
 		igb_receive();
 	}
 	else if(icr == 0x00000002) // TODO only for debugging - needed?
-		igb_write(E1000_REG_ICR, 0x00000002);
+		igb_write(IGB_REG_ICR, 0x00000002);
 	return true;
 }
