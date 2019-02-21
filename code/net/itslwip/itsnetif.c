@@ -64,14 +64,14 @@ static err_t itsnetif_output(struct netif *netif, struct pbuf *p)
 		}
 	}
 
-	/*printf_locked("Sending packet of length %d", packetSize);
+	printf_locked("Sending packet of length %d", packetSize);
 	for(int i = 0; i < packetSize; ++i)
 	{
 		if(i % 16 == 0)
 			printf_locked("\n    ");
 		printf_locked("%02x ", (uint8_t)packet[i]);
 	}
-	printf_locked("\n");*/
+	printf_locked("\n");
 	
 	// Send packet
 	sys_send_network_packet((uint8_t *)packet, packetSize);
@@ -125,6 +125,8 @@ void itsnetif_input(struct netif *netif, uint8_t *packet, int packetLength)
 			// Copy packet part
 			memcpy(q->payload, packet + packetPos, q->len);
 			packetPos += q->len;
+			
+			// TODO May this code ever exceed the packet's bounds?
 		}
 
 		// Update statistics

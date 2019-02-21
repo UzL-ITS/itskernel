@@ -26,7 +26,7 @@ const color_t COLOR_CURRENT_DIRECTORY = { 0, 200, 0 };
 const color_t COLOR_ERROR = { 200, 0, 0 };
 
 // Network configuration.
-//*
+/*
 static char serverIpAddress[] = "141.83.62.232";
 static char ipAddress[] = "141.83.62.44";
 static char subnetMask[] = "255.255.255.0";
@@ -177,41 +177,51 @@ void main()
 			printf_locked
 			(
 				"Supported commands:\n"
-				"    lss                           List remote directory\n"
+				"    lss <protocol>                List remote directory\n"
 				"    ls                            List current directory\n"
 				"    cd <directory name>           Change to given directory\n"
 				"    mkdir <directory name>        Create directory\n"
-				"    dl <file name>                Download file from server to /in directory\n"
-				"    ul <file path>                Upload file to server\n"
+				"    dl <protocol> <file name>     Download file from server to /in directory\n"
+				"    ul <protocol> <file path>     Upload file to server\n"
 				"    cat <file path>               Print contents of given file\n"
 				"    start <file path>             Run the given ELF64 file as a new process\n"
 				"    sysinfo                       Print system information (e.g. CPU topology)\n"
 				"    reboot                        Reset the CPU\n"
+				"\n"
+				"Supported protocols: tcp udp\n"
 				"\n"
 				"Note: File and directory names can contain arbitrary characters, except spaces and slashes.\n"
 			);
 		}
 		else if(strcmp(args[0], "lss") == 0)
 		{
-			// Connect to server and send command
-			tcp_handle_t tcpHandle = itslwip_connect(serverIpAddress, 17571);
-			itslwip_send_string(tcpHandle, "ls\n", 3);
-			
-			// Receive file count
-			itslwip_receive_line(tcpHandle, buffer, sizeof(buffer));
-			int count = atoi(buffer);
-			printf_locked("Server has %d input files:\n", count);
-			
-			// Receive file list
-			for(int i = 0; i < count; ++i)
+			if(argCount < 2)
 			{
-				itslwip_receive_line(tcpHandle, buffer, sizeof(buffer));
-				printf_locked("    %s\n", buffer);
+				terminal_set_front_color(COLOR_ERROR);
+				printf_locked("Missing argument.\n");
 			}
-			
-			// Disconnect
-			itslwip_send_string(tcpHandle, "exit\n", 5);
-			itslwip_disconnect(tcpHandle);
+			else
+			{
+				// Connect to server and send command
+				conn_handle_t connHandle = itslwip_connect(serverIpAddress, 17571, strcmp(args[1], "tcp") == 0);
+				itslwip_send_string(connHandle, "ls\n", 3);
+				
+				// Receive file count
+				itslwip_receive_line(connHandle, buffer, sizeof(buffer));
+				int count = atoi(buffer);
+				printf_locked("Server has %d input files:\n", count);
+				
+				// Receive file list
+				for(int i = 0; i < count; ++i)
+				{
+					itslwip_receive_line(connHandle, buffer, sizeof(buffer));
+					printf_locked("    %s\n", buffer);
+				}
+				
+				// Disconnect
+				itslwip_send_string(connHandle, "exit\n", 5);
+				itslwip_disconnect(connHandle);
+			}
 		}
 		else if(strcmp(args[0], "ls") == 0 || strcmp(args[0], "ll") == 0)
 		{
@@ -300,32 +310,32 @@ void main()
 		else if(strcmp(args[0], "dl") == 0)
 		{
 			// Get file name
-			if(argCount < 2)
+			if(argCount < 3)
 			{
 				terminal_set_front_color(COLOR_ERROR);
 				printf_locked("Missing argument.\n");
 			}
 			else
 			{
-				int filenameLength = strlen(args[1]);
+				int filenameLength = strlen(args[2]);
 				char *filename = (char *)malloc(4 + filenameLength + 1);
 				strncpy(filename, "/in/", 4);
-				strncpy(&filename[4], args[1], filenameLength);
+				strncpy(&filename[4], args[2], filenameLength);
 				filename[4 + filenameLength] = '\n';
 				
 				// Connect to server and send command
-				tcp_handle_t tcpHandle = itslwip_connect(serverIpAddress, 17571);
-				itslwip_send_string(tcpHandle, "sendin\n", 7);
-				itslwip_send_string(tcpHandle, &filename[4], filenameLength + 1);
+				conn_handle_t connHandle = itslwip_connect(serverIpAddress, 17571, strcmp(args[1], "tcp") == 0);
+				itslwip_send_string(connHandle, "sendin\n", 7);
+				itslwip_send_string(connHandle, &filename[4], filenameLength + 1);
 				
 				// Receive file size
-				itslwip_receive_line(tcpHandle, buffer, sizeof(buffer));
+				itslwip_receive_line(connHandle, buffer, sizeof(buffer));
 				int fileSize = atoi(buffer);
 				printf_locked("File size: %d bytes\n", fileSize);
 				
 				// Receive file data
 				uint8_t *fileData = (uint8_t *)malloc(fileSize);
-				itslwip_receive_data(tcpHandle, fileData, fileSize);
+				itslwip_receive_data(connHandle, fileData, fileSize);
 				
 				// Store file
 				fs_fd_t fd;
@@ -351,8 +361,8 @@ void main()
 				}
 				
 				// Disconnect
-				itslwip_send_string(tcpHandle, "exit\n", 5);
-				itslwip_disconnect(tcpHandle);
+				itslwip_send_string(connHandle, "exit\n", 5);
+				itslwip_disconnect(connHandle);
 				free(fileData);
 				free(filename);
 			}
@@ -360,7 +370,7 @@ void main()
 		else if(strcmp(args[0], "ul") == 0)
 		{
 			// Check parameters
-			if(argCount < 2)
+			if(argCount < 3)
 			{
 				terminal_set_front_color(COLOR_ERROR);
 				printf_locked("Missing argument.\n");
@@ -368,11 +378,11 @@ void main()
 			else
 			{
 				// Absolute or relative path?
-				int pathLength = strlen(args[1]);
-				if(pathLength >= 1 && args[1][0] == '/')
+				int pathLength = strlen(args[2]);
+				if(pathLength >= 1 && args[2][0] == '/')
 				{
 					// Use argument as entire path
-					strncpy(buffer, args[1], pathLength);
+					strncpy(buffer, args[2], pathLength);
 					buffer[pathLength] = '\0';
 				}
 				else
@@ -380,7 +390,7 @@ void main()
 					// Concat current directory and given path
 					int currentDirectoryStringLength = strlen(currentDirectory);
 					strncpy(buffer, currentDirectory, currentDirectoryStringLength);
-					strncpy(&buffer[currentDirectoryStringLength], args[1], pathLength);
+					strncpy(&buffer[currentDirectoryStringLength], args[2], pathLength);
 					buffer[currentDirectoryStringLength + pathLength] = '\0';
 				}
 				
@@ -417,23 +427,23 @@ void main()
 					filenameBuffer[filenameLength] = '\n';
 					
 					// Connect to server and send command including file name
-					tcp_handle_t tcpHandle = itslwip_connect(serverIpAddress, 17571);
-					itslwip_send_string(tcpHandle, "sendout\n", 8);
-					itslwip_send_string(tcpHandle, filenameBuffer, filenameLength + 1);
+					conn_handle_t connHandle = itslwip_connect(serverIpAddress, 17571, strcmp(args[1], "udp") == 0);
+					itslwip_send_string(connHandle, "sendout\n", 8);
+					itslwip_send_string(connHandle, filenameBuffer, filenameLength + 1);
 					
 					// Send file size
 					char fileSizeBuffer[11];
 					itoa((int)fileSize, fileSizeBuffer, 10);
 					int fileSizeLength = strlen(fileSizeBuffer);
 					fileSizeBuffer[fileSizeLength] = '\n';
-					itslwip_send_string(tcpHandle, fileSizeBuffer, fileSizeLength + 1);
+					itslwip_send_string(connHandle, fileSizeBuffer, fileSizeLength + 1);
 					
 					// Send file data
-					itslwip_send(tcpHandle, fileData, fileSize);
+					itslwip_send(connHandle, fileData, fileSize);
 					
 					// Disconnect
-					itslwip_send_string(tcpHandle, "exit\n", 5);
-					itslwip_disconnect(tcpHandle);
+					itslwip_send_string(connHandle, "exit\n", 5);
+					itslwip_disconnect(connHandle);
 					free(fileData);
 				}
 			}
