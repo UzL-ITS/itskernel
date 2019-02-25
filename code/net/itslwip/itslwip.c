@@ -18,6 +18,7 @@ ITS kernel LWIP port main file.
 #include "lwip/stats.h"
 #include "netif/etharp.h"
 #include "lwip/timeouts.h"
+#include "lwip/etharp.h"
 
 /* TYPES */
 
@@ -64,6 +65,9 @@ typedef struct
 	
 	// The amount of bytes waiting for being sent.
 	int sendQueueSize;
+	
+	// The next UDP send block number.
+	uint32_t udpBlockNumber;
 } conn_data_t;
 
 
@@ -371,6 +375,7 @@ conn_handle_t itslwip_connect(const char *targetAddress, int targetPort, bool us
 		struct udp_pcb *udpObj = udp_new();
 		udpObj->ttl = UDP_TTL;
 		connData->udpObj = udpObj;
+		connData->udpBlockNumber = 0;
 		
 		// Set receive callback
 		udp_recv(udpObj, &handle_udp_receive, (void *)connData);
@@ -469,38 +474,52 @@ void itslwip_send(conn_handle_t connHandle, uint8_t *data, int dataLength)
 	}
 	else
 	{
-		// Allocate memory for send buffer
+		// The data is send piece by piece, calculate number of chunks
+		uint16_t sendChunkHeaderSize = 4 + 4 + 4 + 2; // Block number | Chunk count | Chunk number | Chunk length
 		uint16_t sendChunkSize = 1024;
-		struct pbuf *p = pbuf_alloc(PBUF_TRANSPORT, sendChunkSize, PBUF_RAM);
-		if(!p)
-		{
-			printf_locked("Could not allocate pbuf for sending\n");
-			return;
-		}
+		uint32_t sendChunkCount = (dataLength + sendChunkSize - 1) / sendChunkSize;
 		
-		// Send data piece by piece
-		int i = 0;
-		while(i < dataLength)
+		// Send entire data multiple times to increase probability that all blocks arrive
+		for(int tries = 0; tries < 1; ++tries)
 		{
-			// Calculate size of next data chunk to send
-			uint16_t nextChunkSize = ((dataLength - i) > sendChunkSize ? sendChunkSize : (dataLength - i));
-			
-			// Send chunk
-			memcpy(p->payload, &data[i], nextChunkSize);
-			p->len = nextChunkSize;
-			p->tot_len = nextChunkSize;
-			printf_locked("Sending %d bytes...\n", p->len);
-			err_t err = udp_send(connData->udpObj, p);
-			if(err != ERR_OK)
+			// Send data piece by piece
+			int offset = 0;
+			for(uint32_t i = 0; i < sendChunkCount; ++i)
 			{
-				printf_locked("UDP send failed: %d\n", err);
-				return;
+				// Calculate size of next data chunk to send
+				uint16_t nextChunkSize = ((dataLength - offset) > sendChunkSize ? sendChunkSize : (dataLength - offset));
+				
+				// Allocate chunk buffer
+				// NOTE udp_send() changes the payload pointer of the pbuf to write header data, thus reusing an existing pbuf causes problems
+				struct pbuf *p = pbuf_alloc(PBUF_TRANSPORT, sendChunkHeaderSize + nextChunkSize, PBUF_RAM);
+				if(!p)
+				{
+					printf_locked("Could not allocate pbuf for sending\n");
+					return;
+				}
+				
+				// Send chunk
+				uint8_t *sendChunk = (uint8_t *)p->payload;
+				*((uint32_t *)&sendChunk[0]) = connData->udpBlockNumber;
+				*((uint32_t *)&sendChunk[4]) = sendChunkCount;
+				*((uint32_t *)&sendChunk[8]) = i;
+				*((uint16_t *)&sendChunk[12]) = nextChunkSize;
+				memcpy(&sendChunk[14], &data[offset], nextChunkSize);
+				err_t err = udp_send(connData->udpObj, p);
+				if(err != ERR_OK)
+				{
+					printf_locked("UDP send failed: %d\n", err);
+					return;
+				}
+				offset += nextChunkSize;
+			
+				// Free send buffer
+				pbuf_free(p);
 			}
-			i += nextChunkSize;
 		}
 		
-		// Free send buffer
-		pbuf_free(p);
+		// Increment UDP block number
+		connData->udpBlockNumber++;
 	}
 	
 	// LWIP calls are done
@@ -581,4 +600,20 @@ void itslwip_receive_line(conn_handle_t connHandle, char *lineBuffer, int lineBu
 		lineBuffer[i++] = currentChar;
 	}
 	lineBuffer[i] = '\0';
+}
+
+void itslwip_add_static_arp_entry(const char *ipStr, const uint8_t *macAddr)
+{
+	// Parse IP address
+	ip4_addr_t ip;
+	if(!inet_aton(ipStr, &ip))
+		return;
+	
+	// Copy MAC address
+	struct eth_addr mac;
+	for(int i = 0; i < 6; ++i)
+		mac.addr[i] = macAddr[i];
+	
+	// Create entry
+	printf_locked("Status: %d\n", etharp_add_static_entry(&ip, &mac));
 }

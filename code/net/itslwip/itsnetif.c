@@ -11,6 +11,7 @@ Based on src/itsnetif.c.
 #include <io.h>
 
 #include "lwip/opt.h"
+#include "lwip/debug.h"
 #include "lwip/def.h"
 #include "lwip/mem.h"
 #include "lwip/pbuf.h"
@@ -64,14 +65,14 @@ static err_t itsnetif_output(struct netif *netif, struct pbuf *p)
 		}
 	}
 
-	printf_locked("Sending packet of length %d", packetSize);
+	/*printf_locked("Sending packet of length %d", packetSize);
 	for(int i = 0; i < packetSize; ++i)
 	{
 		if(i % 16 == 0)
 			printf_locked("\n    ");
 		printf_locked("%02x ", (uint8_t)packet[i]);
 	}
-	printf_locked("\n");
+	printf_locked("\n");*/
 	
 	// Send packet
 	sys_send_network_packet((uint8_t *)packet, packetSize);

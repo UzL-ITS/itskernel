@@ -5,10 +5,15 @@ namespace itskernel_server
 {
     internal class Program
     {
-        /// <summary>
-        /// The TCP port the server listens on.
-        /// </summary>
-        private const int SERVER_PORT = 17571;
+        private const int DEFAULT_SERVER_PORT = 17571;
+        private const string DEFAULT_WORK_DIR = @"R:\itskernel\";
+        //private const string DEFAULT_SERVER_IP = "192.168.20.1"; // VirtualBox
+        //private const string DEFAULT_SERVER_IP = "192.168.21.1"; // VMware
+        private const string DEFAULT_SERVER_IP = "141.83.62.232";
+        private const string DEFAULT_PROTOCOL = "udp";
+        //private const string DEFAULT_REMOTE_IP = "192.168.21.10"; // VMware
+        private const string DEFAULT_REMOTE_IP = "141.83.62.44";
+
 
         /// <summary>
         /// Application entry point.
@@ -17,7 +22,7 @@ namespace itskernel_server
         private static void Main(string[] args)
         {
             // Get working directory
-            string workingDirectory = RequestUserConfig("working directory", @"R:\itskernel\");
+            string workingDirectory = RequestUserConfig("working directory", DEFAULT_WORK_DIR);
             if(!Directory.Exists(workingDirectory))
             {
                 Console.WriteLine("The given working directory does not exist.");
@@ -34,18 +39,16 @@ namespace itskernel_server
                 Directory.CreateDirectory(outDirectory);
 
             // Server parameters
-            //string serverIp = RequestUserConfig("server IP", "192.168.20.1"); // VirtualBox
-            string serverIp = RequestUserConfig("server IP", "192.168.21.1"); // VMware
-            //string serverIp = RequestUserConfig("server IP", "141.83.62.232");
+            string serverIp = RequestUserConfig("server IP", DEFAULT_SERVER_IP);
 
             // Start requested protocol server
-            string protocolType = RequestUserConfig("protocol type [tcp, udp]", "tcp");
+            string protocolType = RequestUserConfig("protocol type [tcp, udp]", DEFAULT_PROTOCOL);
             if(protocolType == "tcp")
-                new TwoWayProtocol(serverIp, SERVER_PORT, inDirectory, outDirectory).Run();
+                new TwoWayProtocol(serverIp, DEFAULT_SERVER_PORT, inDirectory, outDirectory).Run();
             else if(protocolType == "udp")
             {
-                string remoteIp = RequestUserConfig("remote IP", "141.83.62.44");
-                new OneWayProtocol(serverIp, SERVER_PORT, remoteIp, SERVER_PORT, inDirectory).Run();
+                string remoteIp = RequestUserConfig("remote IP", DEFAULT_REMOTE_IP);
+                new OneWayProtocol(serverIp, DEFAULT_SERVER_PORT, remoteIp, DEFAULT_SERVER_PORT, outDirectory).Run();
             }
             else
                 Console.WriteLine("Unknown protocol type.");

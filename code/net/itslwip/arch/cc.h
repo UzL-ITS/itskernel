@@ -15,12 +15,14 @@ See doc/sys_arch.txt for further explanations.
 
 // sprintf() formatters
 #define LWIP_NO_INTTYPES_H 1
+#define U8_F "hhd"
+#define X8_F "hhx"
 #define U16_F "hu"
 #define S16_F "hd"
-#define X16_F "hx"
+#define X16_F "4x"
 #define U32_F "u"
 #define S32_F "d"
-#define X32_F "x"
+#define X32_F "8x"
 
 // We currently do not have an errno.h file
 #define LWIP_PROVIDE_ERRNO
@@ -39,7 +41,7 @@ See doc/sys_arch.txt for further explanations.
 
 // Debug outputs
 #define LWIP_PLATFORM_DIAG(x) do { \
-        printf_locked(x);                 \
+        printf_locked x;                 \
     } while(0)
 
 #define LWIP_PLATFORM_ASSERT(x) do {                                              \

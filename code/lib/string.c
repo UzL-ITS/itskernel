@@ -61,6 +61,25 @@ uint64_t atoi(const char *str)
 	return i;
 }
 
+uint64_t atoi16(const char *str)
+{
+	// Add up digits from left to right
+	uint64_t i = 0;
+	while(*str)
+	{
+		char c = *str++;
+		if(is_digit(c))
+			i = i * 16 + (uint64_t)(c - '0');
+		else if('A' <= c && c <= 'F')
+			i = i * 16 + 10 + (uint64_t)(c - 'A');
+		else if('a' <= c && c <= 'f')
+			i = i * 16 + 10 + (uint64_t)(c - 'a');
+		else
+			break;
+	}
+	return i;
+}
+
 char *itoa(uint64_t value, char *str, int base)
 {
 	// Only support bases {0, 1} till {0, ..., 9, A, ..., Z}

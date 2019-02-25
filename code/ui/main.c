@@ -26,7 +26,7 @@ const color_t COLOR_CURRENT_DIRECTORY = { 0, 200, 0 };
 const color_t COLOR_ERROR = { 200, 0, 0 };
 
 // Network configuration.
-/*
+//*
 static char serverIpAddress[] = "141.83.62.232";
 static char ipAddress[] = "141.83.62.44";
 static char subnetMask[] = "255.255.255.0";
@@ -187,6 +187,7 @@ void main()
 				"    start <file path>             Run the given ELF64 file as a new process\n"
 				"    sysinfo                       Print system information (e.g. CPU topology)\n"
 				"    reboot                        Reset the CPU\n"
+				"    addarp <ip> <mac>             Add static IP/MAC pair to ARP table\n"
 				"\n"
 				"Supported protocols: tcp udp\n"
 				"\n"
@@ -554,6 +555,33 @@ void main()
 						printf_locked("OK\n");
 					else
 						printf_locked("failed\n");
+				}
+			}
+		}
+		else if(strcmp(args[0], "addarp") == 0)
+		{
+			// Get file name
+			if(argCount < 3)
+			{
+				terminal_set_front_color(COLOR_ERROR);
+				printf_locked("Missing argument(s).\n");
+			}
+			else
+			{
+				// Parse MAC address
+				if(strlen(args[2]) < (6 * 2 + 5))
+				{
+					terminal_set_front_color(COLOR_ERROR);
+					printf_locked("Invalid MAC address. Please use the format XX:XX:XX:XX:XX:XX\n");
+				}
+				else
+				{
+					uint8_t mac[6];
+					for(int i = 0; i < 6; ++i)
+						mac[i] = atoi16(&args[2][3 * i]);
+					
+					// Add static ARP entry
+					itslwip_add_static_arp_entry(args[1], mac);
 				}
 			}
 		}

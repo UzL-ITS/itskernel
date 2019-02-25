@@ -1,4 +1,5 @@
-﻿using System.Drawing;
+﻿using System;
+using System.Drawing;
 using System.IO;
 using System.Linq;
 
@@ -12,7 +13,7 @@ namespace dumpconverter
         {
             // Read dump
             Dump dump = new Dump("R:\\itskernel\\out\\dump.bin");
-            
+
             //foreach(var entry in dump.MemoryMap)
             //    Console.WriteLine("- " + entry.AddressStart.ToString("X16") + "    " + entry.AddressEnd.ToString("X16") + "    " + entry.Type.ToString());
             //Console.WriteLine();
@@ -20,7 +21,7 @@ namespace dumpconverter
             //foreach(var frame in dump.Frames)
             //    Console.WriteLine(frame.Address.ToString("X16") + "    " + frame.Flags.ToString());
 
-            
+
 
             // Delete old dumps
             DirectoryInfo dumpsDir = new DirectoryInfo("R:\\dumps");
@@ -28,7 +29,7 @@ namespace dumpconverter
                 dumpsDir.Create();
             foreach(var file in dumpsDir.GetFiles("*.png"))
                 file.Delete();
-            
+
             foreach(var mapEntry in dump.MemoryMap)
             {
                 // Skip uninteresting entries
@@ -86,6 +87,18 @@ namespace dumpconverter
                 // Done
                 image.Save("R:\\dumps\\" + imageName, System.Drawing.Imaging.ImageFormat.Png);
             }
+
+            // Print legend
+            Console.WriteLine($"Number of 4K pages per line: {WIDTH} ({Math.Round(4096.0 * WIDTH / (1024 * 1024), 1)}M)");
+            Console.WriteLine($"Colors:");
+            Console.WriteLine($"    Black     Used");
+            Console.WriteLine($"    Blue      Stack Page");
+            Console.WriteLine($"    Cyan      Reserved by PMM");
+            Console.WriteLine($"    Green     Auxiliary for PMM");
+            Console.WriteLine($"    Red       Free (4K)");
+            Console.WriteLine($"    Orange    Free (2M)");
+            Console.WriteLine($"    Yellow    Free (1G)");
+            Console.Read();
         }
     }
 }

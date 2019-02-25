@@ -27,8 +27,11 @@ char *strrev(char *str);
 // Returns a pointer to the first location of a character in the given string.
 char *strchr(char *str, int c);
 
-// Converts the given string into an unsigned 64-bit integer.
+// Converts the given decimal string into an unsigned 64-bit integer.
 uint64_t atoi(const char *str);
+
+// Converts the given hex string into an unsigned 64-bit integer.
+uint64_t atoi16(const char *str);
 
 // Converts the given unsigned integer into a string, which is written into the given buffer (make sure this is long enough!).
 // Returns str on success.

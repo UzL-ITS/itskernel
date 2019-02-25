@@ -45,3 +45,6 @@ void itslwip_receive_data(conn_handle_t connHandle, uint8_t *dataBuffer, int dat
 // This function blocks until a new line character (\n) was encountered.
 // The resulting string is \0 terminated; the new line character itself is not returned.
 void itslwip_receive_line(conn_handle_t connHandle, char *lineBuffer, int lineBufferLength);
+
+// Adds a static ARP table entry for the given IP/MAC address pair.
+void itslwip_add_static_arp_entry(const char *ipStr, const uint8_t *macAddr);

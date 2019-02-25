@@ -16,6 +16,8 @@ See src/include/lwip/opt.h for a list of all available options.
 // ARP
 #define LWIP_ARP 1
 #define ETHARP_SUPPORT_VLAN 0
+#define ARP_QUEUEING 1
+#define ETHARP_SUPPORT_STATIC_ENTRIES 1
 
 // IPv4
 #define LWIP_IPV4 1
@@ -57,8 +59,9 @@ See src/include/lwip/opt.h for a list of all available options.
 #define MEMP_SANITY_CHECK               0
 
 // Debug flags
-/*#define LWIP_DBG_MIN_LEVEL     LWIP_DBG_LEVEL_ALL
-#define LWIP_DBG_TYPES_ON      LWIP_DBG_ON
+/*#define LWIP_DEBUG             1
+#define LWIP_DBG_MIN_LEVEL     LWIP_DBG_LEVEL_ALL
+#define LWIP_DBG_TYPES_ON      (LWIP_DBG_TRACE | LWIP_DBG_STATE | LWIP_DBG_FRESH | LWIP_DBG_HALT)
 #define ETHARP_DEBUG           LWIP_DBG_ON
 #define NETIF_DEBUG            LWIP_DBG_ON
 #define PBUF_DEBUG             LWIP_DBG_ON

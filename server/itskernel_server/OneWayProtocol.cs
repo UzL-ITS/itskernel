@@ -30,33 +30,59 @@ namespace itskernel_server
             while(true)
             {
                 // Wait for incoming data
-                Console.WriteLine("Waiting for data...");
+                Console.WriteLine("Waiting for incoming data...");
+                while(server.Available <= 0)
+                { }
 
                 // Receive next command
                 string command = server.ReceiveLine();
                 Console.WriteLine($"Received command \"{command}\".");
                 switch(command)
                 {
+                    // 3 Blocks:
+                    // - File name
+                    // - File size
+                    // - File
                     case "sendout":
                     {
-                        // Receive file name
-                        Console.WriteLine($"    Receiving file name...");
-                        string fileName = server.ReceiveLine();
-                        Console.WriteLine($"    File name is \"{ fileName }\"");
+                        uint receivedBlocksCount = 0;
+                        try
+                        {
+                            // Receive file name
+                            Console.WriteLine($"    Receiving file name...");
+                            string fileName = server.ReceiveLine();
+                            ++receivedBlocksCount;
+                            Console.WriteLine($"    File name is \"{ fileName }\"");
 
-                        // Receive file length
-                        Console.WriteLine($"    Receiving file size...");
-                        int fileLength = int.Parse(server.ReceiveLine());
-                        Console.WriteLine($"    File size is \"{ fileLength }\"");
+                            // Receive file length
+                            Console.WriteLine($"    Receiving file size...");
+                            int fileLength = int.Parse(server.ReceiveLine());
+                            ++receivedBlocksCount;
+                            Console.WriteLine($"    File size is \"{ fileLength }\"");
 
-                        // Receive file
-                        Console.WriteLine($"    Receiving file...");
-                        byte[] file = server.ReceiveBytes(fileLength);
+                            // Receive file
+                            Console.WriteLine($"    Receiving file...");
+                            byte[] file = server.ReceiveBytes(fileLength);
+                            ++receivedBlocksCount;
 
-                        // Save file
-                        Console.WriteLine($"    Saving file...");
-                        File.WriteAllBytes(Path.Combine(OutDirectory, fileName), file);
+                            // Save file
+                            Console.WriteLine($"    Saving file...");
+                            File.WriteAllBytes(Path.Combine(OutDirectory, fileName), file);
+                        }
+                        catch(UdpServer.PartialBlockException)
+                        {
+                            // Discard
+                            server.SkipBlocks(3 - receivedBlocksCount);
+                            Console.WriteLine($"    Could not receive entire file, please retry");
+                        }
 
+                        break;
+                    }
+
+                    // 0 Blocks
+                    case "exit":
+                    {
+                        // Ignore
                         break;
                     }
 
