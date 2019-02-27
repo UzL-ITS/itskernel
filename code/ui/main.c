@@ -188,6 +188,7 @@ void main()
 				"    sysinfo                       Print system information (e.g. CPU topology)\n"
 				"    reboot                        Reset the CPU\n"
 				"    addarp <ip> <mac>             Add static IP/MAC pair to ARP table\n"
+				"    custom <param>                Run custom system call with given integer parameter\n"
 				"\n"
 				"Supported protocols: tcp udp\n"
 				"\n"
@@ -639,10 +640,9 @@ void main()
 			{
 				// Print help text for sub commands
 				printf_locked("Supported commands:\n");
-				printf_locked("    dump [file name]      Generate list of available physical pages and store it in the given file\n");
-				printf_locked("    showmap [file name]   Render map of physical memory\n");
+				printf_locked("    state [file name]     Generate list of available physical pages and store it in the given file\n");
 			}
-			else if(strcmp(args[1], "dump") == 0)
+			else if(strcmp(args[1], "state") == 0)
 			{
 				if(argCount < 3)
 				{
@@ -669,14 +669,10 @@ void main()
 					}
 					
 					// Generate dump
-					printf_locked("Running dump...");
+					printf_locked("Running state dump...");
 					create_dump(DUMP_PMM_STATE, buffer);
 					printf_locked("done.\n");
 				}
-			}
-			else if(strcmp(args[1], "showmap") == 0)
-			{
-				
 			}
 		}
 		else if(strcmp(args[0], "reboot") == 0)
@@ -713,7 +709,7 @@ void main()
 				run_thread(victim, &coreVictim2, "memjamvictim2");
 			}
 		}
-		else if(strcmp(args[0], "scramble") == 0)
+		else if(strcmp(args[0], "custom") == 0)
 		{
 			if(argCount < 2)
 			{
@@ -722,9 +718,9 @@ void main()
 			}
 			else
 			{
+				// Do system call
 				int mode = atoi(args[1]);
 				sys_custom(mode);
-				
 				printf_locked("Done\n");
 			}
 		}

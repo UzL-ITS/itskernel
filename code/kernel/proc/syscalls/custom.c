@@ -17,7 +17,7 @@ uint8_t *sys_custom(int param)
 	
 	uint64_t phys;
 	if(mem == 0)
-		mem = heap_alloc_contiguous(size, VM_R | VM_W, &phys);
+		mem = (uint8_t *)vbe_debug_get_render_buffer(1);//heap_alloc_contiguous(size, VM_R | VM_W, &phys);
 	
 	trace_printf("Memory address: virt = %016x    phy = %016x\n", mem, vmm_virt_to_phys((uint64_t)mem));
 	
@@ -34,10 +34,10 @@ uint8_t *sys_custom(int param)
 	}
 	else if(param == 1)
 	{
-		//sys_create_file("/", "mem.bin", mem, size);
+		
 	}
 	
-	trace_printf("sys_test() done.\n");
+	trace_printf("sys_custom() done.\n");
 	
 	return 0;
 }

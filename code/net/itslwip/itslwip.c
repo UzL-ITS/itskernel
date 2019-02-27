@@ -65,9 +65,6 @@ typedef struct
 	
 	// The amount of bytes waiting for being sent.
 	int sendQueueSize;
-	
-	// The next UDP send block number.
-	uint32_t udpBlockNumber;
 } conn_data_t;
 
 
@@ -94,6 +91,9 @@ static mutex_t lwipMutex;
 
 // Buffer for receiving packets.
 static uint8_t packetBuffer[ETHERNET_PACKET_SIZE];
+
+// The next UDP send block number.
+static uint32_t udpBlockNumber = 0;
 
 
 /* LWIP SYSTEM FUNCTIONS */
@@ -375,7 +375,7 @@ conn_handle_t itslwip_connect(const char *targetAddress, int targetPort, bool us
 		struct udp_pcb *udpObj = udp_new();
 		udpObj->ttl = UDP_TTL;
 		connData->udpObj = udpObj;
-		connData->udpBlockNumber = 0;
+		udpBlockNumber = 0;
 		
 		// Set receive callback
 		udp_recv(udpObj, &handle_udp_receive, (void *)connData);
@@ -500,7 +500,7 @@ void itslwip_send(conn_handle_t connHandle, uint8_t *data, int dataLength)
 				
 				// Send chunk
 				uint8_t *sendChunk = (uint8_t *)p->payload;
-				*((uint32_t *)&sendChunk[0]) = connData->udpBlockNumber;
+				*((uint32_t *)&sendChunk[0]) = udpBlockNumber;
 				*((uint32_t *)&sendChunk[4]) = sendChunkCount;
 				*((uint32_t *)&sendChunk[8]) = i;
 				*((uint16_t *)&sendChunk[12]) = nextChunkSize;
@@ -519,7 +519,7 @@ void itslwip_send(conn_handle_t connHandle, uint8_t *data, int dataLength)
 		}
 		
 		// Increment UDP block number
-		connData->udpBlockNumber++;
+		++udpBlockNumber;
 	}
 	
 	// LWIP calls are done
