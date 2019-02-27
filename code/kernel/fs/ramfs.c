@@ -611,6 +611,69 @@ void ramfs_seek(int64_t offset, ramfs_seek_whence_t whence, ramfs_fd_t fd)
     handle->position = position;
 }
 
+ramfs_err_t ramfs_delete(const char *path)
+{
+    acquire_lock();
+
+    // Get file info struct
+    const char *fileNameStart; // Position of filename in path string
+    ramfs_file_t *file;
+    ramfs_directory_t *directory;
+    ramfs_err_t err = get_file_entry(path, &fileNameStart, &file, &directory);
+    if(err != RAMFS_ERR_OK)
+    {
+        release_lock();
+        return err;
+    }
+
+    // The file must not be open
+    if(file->isOpen)
+    {
+        release_lock();
+        return RAMFS_ERR_FILE_ALREADY_OPEN;
+    }
+
+    // Remove file from list
+    for(ramfs_file_t *f = directory->firstFile; f; f = f->next)
+    {
+        if(f == file)
+            break;
+        if(f->next == file)
+        {
+            f->next = file->next;
+            if(directory->lastFile == file)
+                directory->lastFile = f;
+            break;
+        }
+    }
+    if(directory->firstFile == file)
+    {
+        directory->firstFile = file->next;
+        if(directory->lastFile == file)
+            directory->lastFile = file->next;
+    }
+
+    // Free file blocks
+    ramfs_file_block_entry_t *currentBlock = file->firstBlock;
+    while(currentBlock)
+    {
+        // Free block data
+        free(currentBlock->block);
+
+        // Get address of next block, then free current one
+        ramfs_file_block_entry_t *nextBlock = currentBlock->next;
+        free(currentBlock);
+        currentBlock = nextBlock;
+    }
+
+    // Free file info structure
+    free(file);
+
+    // Done
+    release_lock();
+    return RAMFS_ERR_OK;
+}
+
 int ramfs_list(const char *path, char *buffer, int bufferLength)
 {
     acquire_lock();

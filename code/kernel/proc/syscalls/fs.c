@@ -45,3 +45,8 @@ int sys_fs_list(const char *path, char *buffer, int bufferLength)
 {
 	return ramfs_list(path, buffer, bufferLength);
 }
+
+ramfs_err_t sys_fs_delete(const char *path)
+{
+	return ramfs_delete(path);
+}

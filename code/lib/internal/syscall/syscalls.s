@@ -84,3 +84,4 @@ syscallwrapper sys_fs_create_directory, 36
 syscallwrapper sys_fs_test_directory, 37
 syscallwrapper sys_fs_list, 38
 syscallwrapper sys_dump, 39
+syscallwrapper sys_fs_delete, 40

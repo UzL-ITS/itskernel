@@ -180,6 +180,7 @@ void main()
 				"    lss <protocol>                List remote directory\n"
 				"    ls                            List current directory\n"
 				"    cd <directory name>           Change to given directory\n"
+				"    rm <file path>                Delete given file\n"
 				"    mkdir <directory name>        Create directory\n"
 				"    dl <protocol> <file name>     Download file from server to /in directory\n"
 				"    ul <protocol> <file path>     Upload file to server\n"
@@ -508,6 +509,44 @@ void main()
 					// Done
 					fclose(fd);
 				}
+			}
+		}
+		else if(strcmp(args[0], "rm") == 0)
+		{
+			// Check arguments
+			if(argCount < 2)
+			{
+				terminal_set_front_color(COLOR_ERROR);
+				printf_locked("Missing argument.\n");
+			}
+			else
+			{
+				// Absolute or relative path?
+				int pathLength = strlen(args[1]);
+				if(pathLength >= 1 && args[1][0] == '/')
+				{
+					// Use argument as entire path
+					strncpy(buffer, args[1], pathLength);
+					buffer[pathLength] = '\0';
+				}
+				else
+				{
+					// Concat current directory and given path
+					int currentDirectoryStringLength = strlen(currentDirectory);
+					strncpy(buffer, currentDirectory, currentDirectoryStringLength);
+					strncpy(&buffer[currentDirectoryStringLength], args[1], pathLength);
+					buffer[currentDirectoryStringLength + pathLength] = '\0';
+				}
+				
+				// Delete file
+				fs_err_t err = fdelete(buffer);
+				if(err != FS_ERR_OK)
+				{
+					terminal_set_front_color(COLOR_ERROR);
+					printf_locked("Could not delete file: %d\n", err);
+				}
+				else
+					printf_locked("Done\n");
 			}
 		}
 		else if(strcmp(args[0], "start") == 0)

@@ -88,7 +88,15 @@ int main()
     lsBuffer[len] = '\0';
     printf("%s\n", lsBuffer);
 
+    printf("Deleting some files...\n");
+    ramfs_delete("/test/file0.bin");
+    ramfs_delete("/test/file2.bin");
+    ramfs_delete("/test/file3.bin");
 
+    printf("Listing contents of /test:\n");
+    len = ramfs_list("/test", lsBuffer, sizeof(lsBuffer) - 1);
+    lsBuffer[len] = '\0';
+    printf("%s\n", lsBuffer);
 
     printf("Done.");
 

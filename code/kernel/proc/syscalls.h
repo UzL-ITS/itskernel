@@ -131,5 +131,8 @@ ramfs_err_t sys_fs_test_directory(const char *path, const char *name);
 // Retrieves a list of the contents of the given directory.
 // Note: This function does NOT append a terminating 0-byte.
 int sys_fs_list(const char *path, char *buffer, int bufferLength);
+
+// Deletes the given file.
+ramfs_err_t sys_fs_delete(const char *path);
 	
 #endif

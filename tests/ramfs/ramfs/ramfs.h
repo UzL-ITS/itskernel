@@ -91,6 +91,9 @@ uint64_t ramfs_tell(ramfs_fd_t fd);
 // Moves to the given position in the file.
 void ramfs_seek(int64_t offset, ramfs_seek_whence_t whence, ramfs_fd_t fd);
 
+// Deletes the given file.
+ramfs_err_t ramfs_delete(const char *path);
+
 // Creates a new directory at the given path.
 ramfs_err_t ramfs_create_directory(const char *path, const char *name);
 

@@ -112,3 +112,6 @@ fs_err_t test_directory(const char *path, const char *name);
 // Retrieves a list of the contents of the given directory.
 // Note: This function does NOT append a terminating 0-byte.
 int flist(const char *path, char *buffer, int bufferLength);
+
+// Deletes the given file.
+fs_err_t fdelete(const char *path);

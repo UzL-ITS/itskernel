@@ -177,3 +177,13 @@ int flist(const char *path, char *buffer, int bufferLength)
 	// Call system function
 	return sys_fs_list(path, buffer, bufferLength);
 }
+
+fs_err_t fdelete(const char *path)
+{
+	// Check path validity
+	if(!check_path_string(path))
+		return FS_ERR_INVALID_PATH_FORMAT;
+	
+	// Call system function
+	return sys_fs_delete(path);
+}
