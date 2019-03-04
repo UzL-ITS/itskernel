@@ -59,6 +59,8 @@ uintptr_t syscall_table[] =
 	/* 38 */ (uintptr_t)&sys_fs_list,
 	/* 39 */ (uintptr_t)&sys_dump,
 	/* 40 */ (uintptr_t)&sys_fs_delete,
+	/* 41 */ (uintptr_t)&sys_hugepage_mode,
+	/* 42 */ (uintptr_t)&sys_page_flags,
 };
 uint64_t syscall_table_size = sizeof(syscall_table) / sizeof(*syscall_table);
 

@@ -52,4 +52,7 @@ uintptr_t pmm_alloc_contiguous(int size, int count);
 //       Doing allocations on another core while the dump is being generated might cause crashes.
 void pmm_dump_stack(const char *name);
 
+// Returns the amount of available physical memory.
+uint64_t pmm_get_available_memory();
+
 #endif

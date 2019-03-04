@@ -332,8 +332,10 @@ static bool _vmm_map(uintptr_t virt, uintptr_t phy, vm_acc_t flags)
 // Assigns the given physical address to the given virtual address by modifying the respective page table entry.
 static bool _vmm_maps(uintptr_t virt, uintptr_t phy, vm_acc_t flags, int size)
 {
-	// 1G pages supported?
+	// 1G/2M pages supported?
 	if(size == SIZE_1G && !enable1gPages)
+		return false;
+	if(size == SIZE_2M && !enable2mPages)
 		return false;
 
 	// Build page table structure
@@ -629,4 +631,73 @@ uint64_t vmm_virt_to_phys(uintptr_t virt)
 	uint64_t addr = _vmm_virt_to_phys(virt);
 	vmm_unlock(virt);
 	return addr;
+}
+
+static uint64_t _vmm_modify_flags(uintptr_t virt, uint64_t flags, bool set)
+{
+	// Get page table indices
+	page_index_t index;
+	addr_to_index(&index, virt);
+	
+	// Check PML4 entry
+	uint64_t pml4entry = index.pml4[index.pml4index];
+	if(!(pml4entry & PG_PRESENT))
+		return 0;
+
+	// Check PML3 entry
+	uint64_t pml3entry = index.pml3[index.pml3index];
+	if(!(pml3entry & PG_PRESENT))
+		return 0;
+	if(pml3entry & PG_BIG)
+	{
+		// Update flags
+		trace_printf("Old PML3 entry: %016x\n", pml3entry);
+		if(set)
+			pml3entry |= flags;
+		else
+			pml3entry &= ~flags;
+		trace_printf("New PML3 entry: %016x\n", pml3entry);
+		index.pml3[index.pml3index] = pml3entry;
+		return pml3entry;
+	}
+
+	// Check PML2 entry
+	uint64_t pml2entry = index.pml2[index.pml2index];
+	if(!(pml2entry & PG_PRESENT))
+		return 0;
+	if(pml2entry & PG_BIG)
+	{
+		// Update flags
+		trace_printf("Old PML2 entry: %016x\n", pml2entry);
+		if(set)
+			pml2entry |= flags;
+		else
+			pml2entry &= ~flags;
+		trace_printf("New PML2 entry: %016x\n", pml2entry);
+		index.pml2[index.pml2index] = pml2entry;
+		return pml2entry;
+	}
+
+	// Check PML1 entry
+	uint64_t pml1entry = index.pml1[index.pml1index];
+	if(!(pml1entry & PG_PRESENT))
+		return 0;
+
+	// Update flags
+	trace_printf("Old PML1 entry: %016x\n", pml1entry);
+	if(set)
+		pml1entry |= flags;
+	else
+		pml1entry &= ~flags;
+	trace_printf("New PML1 entry: %016x\n", pml1entry);
+	index.pml1[index.pml1index] = pml1entry;
+	return pml1entry;
+}
+
+uint64_t vmm_modify_flags(uintptr_t virt, uint64_t flags, bool set)
+{
+	vmm_lock(virt);
+	uint64_t entry = _vmm_modify_flags(virt, flags, set);
+	vmm_unlock(virt);
+	return entry;
 }

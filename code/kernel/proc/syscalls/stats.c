@@ -3,6 +3,7 @@
 #include <smp/cpu.h>
 #include <smp/topology.h>
 #include <mm/pmm.h>
+#include <cpu/cpuid.h>
 
 uint64_t sys_get_elapsed_milliseconds()
 {
@@ -15,6 +16,7 @@ void sys_info(int infoId, uint8_t *buffer)
 {
 	// Act depending on information ID
 	uint32_t *buffer32 = (uint32_t *)buffer;
+	uint64_t *buffer64 = (uint64_t *)buffer;
 	switch(infoId)
 	{
 		// Return CPU count
@@ -40,6 +42,27 @@ void sys_info(int infoId, uint8_t *buffer)
 				buffer32[3 * p + 2] = t->smtId;
 			}
 			break;
+		}
+		
+		// Return amount of available physical memory
+		// Buffer size: 8 Bytes
+		case 2:
+		{
+			buffer64[0] = pmm_get_available_memory();
+			break;
+		}
+		
+		// Return information about AMD memory encryption
+		// Buffer size: 8 Bytes
+		case 3:
+		{
+			// Get info
+			uint32_t eax;
+			uint32_t ebx;
+			uint32_t tmp;
+			cpu_id(0x8000001F, &eax, &ebx, &tmp, &tmp);
+			buffer32[0] = eax;
+			buffer32[1] = ebx;
 		}
 	}
 }

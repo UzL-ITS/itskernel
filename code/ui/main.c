@@ -84,34 +84,47 @@ static char **split_command_string(char *command, int *argumentCount)
 	return args;
 }
 
-
-/**** MEMJAM *****/
-extern void attackercode(uint64_t addr);
-static uint8_t attackerBuffer[0x2000];
-static void attacker(void *args)
+static inline uint64_t popcount64(uint64_t x)
 {
-	int core = *((int *)args);
-	set_thread_affinity(core);
-	
-	uint64_t addr = (((uint64_t)attackerBuffer & ~0xFFF) + 0x1110);
-	printf_locked("Attacker targets %016x\n", addr);
-	attackercode(addr);
+  uint64_t m1 = 0x5555555555555555ll;
+  uint64_t m2 = 0x3333333333333333ll;
+  uint64_t m4 = 0x0F0F0F0F0F0F0F0Fll;
+  uint64_t h01 = 0x0101010101010101ll;
+
+  x -= (x >> 1) & m1;
+  x = (x & m2) + ((x >> 2) & m2);
+  x = (x + (x >> 4)) & m4;
+
+  return (x * h01) >> 56;
 }
 
-extern uint64_t victimcode(uint64_t addr, int count);
-static uint8_t victimBuffer[0x2000];
-static void victim(void *args)
+const int tab64[64] = {
+    63,  0, 58,  1, 59, 47, 53,  2,
+    60, 39, 48, 27, 54, 33, 42,  3,
+    61, 51, 37, 40, 49, 18, 28, 20,
+    55, 30, 34, 11, 43, 14, 22,  4,
+    62, 57, 46, 52, 38, 26, 32, 41,
+    50, 36, 17, 19, 29, 10, 13, 21,
+    56, 45, 25, 31, 35, 16,  9, 12,
+    44, 24, 15,  8, 23,  7,  6,  5};
+
+int log2_64 (uint64_t value)
 {
-	int core = *((int *)args);
-	set_thread_affinity(core);
-	
-	uint64_t addr = (((uint64_t)victimBuffer & ~0xFFF) + 0x1110);
-	printf_locked("Victim targets %016x\n", addr);
-	
-	uint64_t sum = victimcode(addr, 100000) / 100000;
-	printf_locked("MemJam time: %d\n", (int)sum);
+    value |= value >> 1;
+    value |= value >> 2;
+    value |= value >> 4;
+    value |= value >> 8;
+    value |= value >> 16;
+    value |= value >> 32;
+    return tab64[((uint64_t)((value - (value >> 1))*0x07EDD5E59A4E28C2)) >> 58];
 }
 
+static inline void clflush(volatile void *p)
+{
+	__asm volatile ("clflush (%0)" :: "r"(p));
+}
+
+// Application entry point.
 void main()
 {
 	// Initialize library
@@ -720,34 +733,6 @@ void main()
 			printf_locked("Initiating reboot...\n");
 			sys_reset();
 		}
-		else if(strcmp(args[0], "memjam") == 0)
-		{
-			if(argCount < 4)
-			{
-				terminal_set_front_color(COLOR_ERROR);
-				printf_locked("Missing argument(s). Usage [attacker core] [victim#1 core] [victim#2 core]\n");
-			}
-			else
-			{
-				int coreAttacker = atoi(args[1]);
-				int coreVictim1 = atoi(args[2]);
-				int coreVictim2 = atoi(args[3]);
-				printf_locked("Starting attacker on core %d...\n", coreAttacker);
-				run_thread(attacker, &coreAttacker, "memjamattack");
-				
-				for(int i = 0; i < 1000000000; ++i)
-					__asm ("nop");
-				
-				printf_locked("Starting victim on core %d...\n", coreVictim1);
-				run_thread(victim, &coreVictim1, "memjamvictim1");
-				
-				for(int i = 0; i < 1000000000; ++i)
-					__asm ("nop");
-				
-				printf_locked("Starting victim on core %d...\n", coreVictim2);
-				run_thread(victim, &coreVictim2, "memjamvictim2");
-			}
-		}
 		else if(strcmp(args[0], "custom") == 0)
 		{
 			if(argCount < 2)
@@ -762,6 +747,101 @@ void main()
 				sys_custom(mode);
 				printf_locked("Done\n");
 			}
+		}
+		else if(strcmp(args[0], "enc") == 0)
+		{
+			uint8_t *data = malloc(4096);
+			memset(data, 0, 4096);
+			data[15] = 0xFF;
+			uint64_t addr = (uint64_t)data;
+			
+			for(int i = 0; i < 4096; ++i)
+			{
+				if(i % 64 == 0)
+					clflush(&data[i]);
+				if(i % 16 == 0)
+					printf_locked("\n");
+				printf_locked("%02x ", data[i]);
+			}
+			printf_locked("\n");
+			
+			uint32_t buf[2];
+			sys_info(3, (uint8_t *)buf);
+			uint32_t eax = buf[0];
+			uint32_t ebx = buf[1];
+			printf_locked("EAX = %08x   EBX = %08x\n", eax, ebx);
+			
+			int bit = ebx & 0x3F;
+			printf_locked("Old: %016llx\n", sys_page_flags(addr, 0x0, false));
+			uint64_t cflag = 1ull << bit;
+			printf_locked("New: %016llx\n", sys_page_flags(addr, cflag, true));
+			
+			for(int i = 0; i < 4096; ++i)
+			{
+				if(i % 64 == 0)
+					clflush(&data[i]);
+				if(i % 16 == 0)
+					printf_locked("\n");
+				printf_locked("%02x ", data[i]);
+			}
+			printf_locked("\n");
+		}
+		else if(strcmp(args[0], "alloctest") == 0)
+		{
+			sys_hugepage_mode(false);
+			
+			uint64_t vectors[] = {
+				0b0000000000000000000000000000000001000000000000000000000000000000ull, // 30
+				0b0000000000000000000000000000000000100000000000000000000000000000ull,
+				0b0000000000000000000000000000000000010000000000000000000000000000ull,
+				0b0000000000000000000000000000000000001000000000000000000000000000ull,
+				0b0000000000000000000000000000000000000100000000000000000000000000ull,
+				0b0000000000000000000000000000000000000010000000000000000000000000ull,
+				0b0000000000000000000000000000000000000001000000000000000000000000ull,
+				0b0000000000000000000000000000000000000000100000000000000000000000ull,
+				0b0000000000000000000000000000000000000000010000000000000000000000ull,
+				0b0000000000000000000000000000000000000000001000000000000000000000ull, // 21
+				0b0000000000000000000000000000000000000001000100000000000000000000ull, // 24 | 20
+				0b0000000000000000000000000000000000000001000010000000000000000000ull,
+				0b0000000000000000000000000000000000000001000001000000000000000000ull,
+				0b0000000000000000000000000000000000000001000000100000000000000000ull,
+				0b0000000000000000000000000000000000000001000000010000000000000000ull,
+				0b0000000000000000000000000000000000000001000000001000000000000000ull,
+				0b0000000000000000000000000000000000000001000000000100000000000000ull,
+				0b0000000000000000000000000000000000000001000000000010000000000000ull,
+				0b0000000000000000000000000000000000000001000000000001000000000000ull,  // 24 | 12
+			};
+			int vectorCount = 19;
+			bool foundVectors[19] = { 0 };
+			
+			uint64_t addresses[1000];
+			uint64_t available;
+			int i = 0;
+			uint64_t size = 256 * 1024 * 1024ull;
+			while((available = get_available_physical_memory()) > size + 8 * 1024 * 1024)
+			{
+				addresses[i] = (uint64_t)malloc(size);
+				printf_locked("Allocated at 0x%016llx, 0x%016llx bytes were available\n", addresses[i], available);
+				for(uint64_t a = 0; a < size; a += 4096)
+				{
+					uint64_t phys = get_physical_address(addresses[i] + a);
+					
+					for(int v = 0; v < vectorCount; ++v)
+						if(vectors[v] == phys)
+							foundVectors[v] = true;
+				}
+				
+				++i;
+			}
+			printf_locked("Vectors: \n");
+			for(int v = 0; v < vectorCount; ++v)
+				printf_locked("0x%016llx: %s\n", vectors[v], foundVectors[v] ? "yes" : "no");
+			
+			sys_hugepage_mode(true);
+			printf_locked("Done\n");
+			
+			//while(--i >= 0)
+			//	free(addresses[i]);
 		}
 		else
 		{

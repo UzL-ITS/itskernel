@@ -21,3 +21,13 @@ uint64_t sys_virt_to_phy(uint64_t addr)
 {
 	return vmm_virt_to_phys(addr);
 }
+
+void sys_hugepage_mode(bool enable)
+{
+	enable2mPages = enable;
+}
+
+uint64_t sys_page_flags(uint64_t address, uint64_t flags, bool set)
+{
+	return vmm_modify_flags(address, flags, set);
+}

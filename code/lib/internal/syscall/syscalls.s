@@ -85,3 +85,5 @@ syscallwrapper sys_fs_test_directory, 37
 syscallwrapper sys_fs_list, 38
 syscallwrapper sys_dump, 39
 syscallwrapper sys_fs_delete, 40
+syscallwrapper sys_hugepage_mode, 41
+syscallwrapper sys_page_flags, 42

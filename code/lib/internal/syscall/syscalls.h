@@ -135,3 +135,9 @@ int sys_fs_list(const char *path, char *buffer, int bufferLength);
 
 // Deletes the given file.
 ramfs_err_t sys_fs_delete(const char *path);
+
+// Enables/disables allocation of >4K huge pages.
+void sys_hugepage_mode(bool enable);
+
+// Modifies the page table flags of the page containing the given address.
+uint64_t sys_page_flags(uint64_t address, uint64_t flags, bool set);

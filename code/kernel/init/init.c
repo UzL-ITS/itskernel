@@ -36,8 +36,9 @@
 #include <pci/pci.h>
 #include <fs/ramfs.h>
 
-// Determines whether 1G pages are enabled (from mm/common.h). Is set in init().
+// Determines whether large/huge pages are enabled (from mm/common.h). Is set in init().
 bool enable1gPages;
+bool enable2mPages;
 
 static void print_banner(void)
 {
@@ -103,6 +104,7 @@ noreturn void init(uint32_t magic, multiboot_t *multiboot)
 	/* scan CPU features */
 	cpu_features_init();
 	enable1gPages = cpu_feature_supported(FEATURE_1G_PAGE);
+	enable2mPages = true;
 
 	/* map physical memory */
 	trace_puts("Mapping physical memory...\n");

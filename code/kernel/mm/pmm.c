@@ -609,8 +609,10 @@ static void _pmm_defragment(bool merge, bool secondPass)
             if(!merge)
                 continue; // Next zone/size
 			
-			// If 1GB pages are not supported, do not create them
+			// If huge/large pages are not supported, do not create them
 			if(!enable1gPages && size == SIZE_2M)
+				continue;
+			if(!enable2mPages && size == SIZE_4K)
 				continue;
 
             // Compute alignment and size parameters
@@ -1120,6 +1122,29 @@ uintptr_t pmm_alloc_contiguous(int size, int count)
     // No contiguous block found
     spin_unlock(&pmmLock);
     return 0;
+}
+
+uint64_t pmm_get_available_memory()
+{
+    spin_lock(&pmmLock);
+	
+	// Sum up available pages
+	uint64_t pageCount = 0;
+	for(int zone = 0; zone < ZONE_COUNT; zone++)
+		for(int size = 0; size < SIZE_COUNT; size++)
+		{
+			// Add 4K page frame count
+			uint64_t frameCount = _pmm_get_frame_count(size, zone);
+			if(size == SIZE_2M)
+				frameCount *= (FRAME_SIZE_2M / FRAME_SIZE);
+			else if(size == SIZE_1G)
+				frameCount *= (FRAME_SIZE_1G / FRAME_SIZE);
+			pageCount += frameCount;
+		}
+	
+	// Done
+	spin_unlock(&pmmLock);
+	return pageCount * FRAME_SIZE; 
 }
 
 #define DUMP_FREE 0x01

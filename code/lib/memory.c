@@ -91,3 +91,15 @@ void *memmove(void *destination, const void *source, int length)
 	
 	return destination;
 }
+
+uint64_t get_physical_address(uint64_t virtAddress)
+{
+	return sys_virt_to_phy(virtAddress);
+}
+
+uint64_t get_available_physical_memory()
+{
+	uint64_t result;
+	sys_info(2, (uint8_t *)&result);
+	return result;
+}

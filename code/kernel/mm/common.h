@@ -48,4 +48,7 @@ typedef enum
 // Determines whether 1G pages are available on this CPU. This value is set in init.c.
 extern bool enable1gPages;
 
+// Determines whether 2M pages are available on this CPU. This value is set in init.c.
+extern bool enable2mPages;
+
 #endif

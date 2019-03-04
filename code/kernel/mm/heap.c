@@ -276,9 +276,12 @@ static void *_heap_alloc(size_t size, vm_acc_t flags, bool phy_alloc, bool conti
 			}
 
 			// Try 2M
-			addr = _heap_alloc_contiguous(SIZE_2M, size2mAmount, flags, physicalAddressPtr);
-			if(addr)
-				return addr;
+			if(enable2mPages)
+			{
+				addr = _heap_alloc_contiguous(SIZE_2M, size2mAmount, flags, physicalAddressPtr);
+				if(addr)
+					return addr;
+			}
 
 			// Try 4K
 			if(!tried4k)

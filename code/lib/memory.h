@@ -5,11 +5,15 @@ ITS kernel user space memory manager.
 
 Currently supported:
 	- Allocation of n*4KB sized blocks on the heap
+	- Moving/copying memory
+	- Retrieving statistical information
 
 TODO add real malloc implementation like dlmalloc or ptmalloc3
 */
 
 /* INCLUDES */
+
+#include <stdint.h>
 
 
 /* DECLARATIONS */
@@ -37,3 +41,9 @@ int memcmp(const void *array1, const void *array2, int length);
 
 // Copies memory from source to destination. Unlike memcpy(), the arrays are allowed to intersect.
 void *memmove(void *destination, const void *source, int length);
+
+// Resolves the given virtual address to its physical address.
+uint64_t get_physical_address(uint64_t virtAddress);
+
+// Returns the amount of available physical memory.
+uint64_t get_available_physical_memory();

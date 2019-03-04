@@ -34,7 +34,7 @@ bool range_alloc(uintptr_t addr_start, size_t len, vm_acc_t flags)
 		}
 
 		/* try to use a 2M frame */
-		if((addr % FRAME_SIZE_2M) == 0 && remaining >= FRAME_SIZE_2M)
+		if(enable2mPages && (addr % FRAME_SIZE_2M) == 0 && remaining >= FRAME_SIZE_2M)
 		{
 			uintptr_t frame = pmm_allocs(SIZE_2M);
 			if(frame)
