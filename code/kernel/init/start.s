@@ -276,6 +276,19 @@ start:
 	; clear the RFLAGS register
 	push 0x0
 	popf
+	
+	; Enable SSE* and AVX, including XSAVE/XRSTOR instructions
+	mov rax, cr0
+	and rax, ~0x4 ; Clear EM
+	or rax, 0x2 ; Set MP
+	mov cr0, rax
+	mov rax, cr4
+	or rax, 0x40600 ; Set OSFXSR, OSXMMEXCPT, OSXSAVE
+	mov cr4, rax
+	xor rcx, rcx ; Load XCR0 register
+	xgetbv
+	or eax, 0x7 ; Set X87, SSE, AVX
+	xsetbv ; Save XCR0 register
 
 	; call the kernel
 	; - the arguments were moved into EDI and ESI at the start

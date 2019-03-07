@@ -64,6 +64,7 @@ typedef struct
   uint64_t regs[15];
   uint64_t rip, rsp, rflags;
   uint64_t cs, ss;
+  void *xsave_state;
 } thread_t;
 
 // Maximum name length: 31 characters.

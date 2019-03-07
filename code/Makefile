@@ -23,12 +23,16 @@ CFLAGS := -std=c1x \
 		  -pedantic \
 		  -ffreestanding \
 		  -mno-red-zone \
+		  -g
+
+# The kernel needs some special flags
+CFLAGS_KERNEL := $(CFLAGS) \
 		  -mno-sse \
 		  -mno-sse2 \
 		  -mno-sse3 \
 		  -mno-3dnow \
 		  -mno-mmx \
-		  -g
+
 
 # Assembler
 AS := nasm
@@ -91,7 +95,7 @@ test: lib $(TEST_OBJECTS)
 	
 # Rules for compilation
 kernel/%.c.o: kernel/%.c
-	$(CC) $(CFLAGS) -I./kernel/ -mcmodel=kernel -MD -MP -MT $@ -MF $(addsuffix .d,$(basename $@)) -c -o $@ $<
+	$(CC) $(CFLAGS_KERNEL) -I./kernel/ -mcmodel=kernel -MD -MP -MT $@ -MF $(addsuffix .d,$(basename $@)) -c -o $@ $<
 kernel/%.s.o: kernel/%.s
 	$(AS) $(ASFLAGS) -o $@ $<
 lib/%.c.o: lib/%.c

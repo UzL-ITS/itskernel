@@ -7,6 +7,7 @@
 #include <mm/seg.h>
 #include <stdlib/stdlib.h>
 #include <stdlib/string.h>
+#include <cpu/xsave.h>
 
 #define STACK_ALIGN 32
 
@@ -35,6 +36,12 @@ thread_t *thread_create(proc_t *proc, int flags, const char *name)
       free(thread);
       return 0;
     }
+	
+	// Make sure user-space stack is aligned to 0x...0 *before* call -> since there is no initial call, it must be aligned to 0x...8
+	uint64_t userSpaceStackPtr = (uint64_t)thread->stack;
+	while((userSpaceStackPtr & 0xF) != 0x8)
+		--userSpaceStackPtr;
+	thread->stack = (void *)userSpaceStackPtr;
   }
 
   thread->lock = SPIN_UNLOCKED;
@@ -58,6 +65,9 @@ thread_t *thread_create(proc_t *proc, int flags, const char *name)
     thread->ss = SLTR_USER_DATA | RPL3;
   }
 
+  // Allocate space for XSAVE
+  thread->xsave_state = xsave_alloc();
+  
   // Copy name
   strncpy(thread->name, name, sizeof(thread->name));
 	
@@ -124,6 +134,9 @@ void thread_destroy(thread_t *thread)
 
   /* free kernel-space stack */
   free(thread->kstack);
+  
+  // Free XSAVE space
+  xsave_free(thread->xsave_state);
 
   /* free thread structure itself */
   free(thread);

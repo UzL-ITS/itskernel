@@ -45,7 +45,7 @@ static void print_banner(void)
 	const int bannerWidth = 80;
 	const char *bannerLine1 = "ITS Micro Kernel";
 	const char *bannerLine2 = "based on Arc Operating System by Graham Edgecombe";
-
+	
 	int bannerLine1SpaceWidth = bannerWidth / 2 - strlen(bannerLine1) / 2;
 	int bannerLine2SpaceWidth = bannerWidth / 2 - strlen(bannerLine2) / 2;
 

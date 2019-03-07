@@ -1,6 +1,7 @@
 target remote localhost:1234
-symbol-file ../code/kernel/itskernel
+symbol-file ../code/kernel.elf
 dir ../code/kernel
+dir ../code/ui
 set disassembly-flavor intel
 set print pretty on
 break init

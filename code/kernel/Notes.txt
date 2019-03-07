@@ -82,8 +82,6 @@ i219:
 	Programmierung ist im Wesentlichen dieselbe wie für ICH8 (für welches eine Dokumentation existiert)
 
 TODO Feature-Ideen:
-	Aktuellen Speicherstatus/Belegung abrufen und anzeigen
-	Mehr Standard-Linux-Befehle
 	Kernel-Threads
 	Geziele Allokierung bestimmter phys. Adressen
 	Contiguous Allocation fixen

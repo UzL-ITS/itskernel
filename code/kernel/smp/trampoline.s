@@ -23,135 +23,148 @@ CR4_PSE equ 0x10
 
 [global trampoline_start]
 trampoline_start:
-  ; disable interrupts straight away as the IVT is probably trash right now
-  cli
+	; disable interrupts straight away as the IVT is probably trash right now
+	cli
 
-  ; zero all segments (apart from the code segment)
-  mov ax, 0x0
-  mov ds, ax
-  mov es, ax
-  mov fs, ax
-  mov gs, ax
-  mov ss, ax
+	; zero all segments (apart from the code segment)
+	mov ax, 0x0
+	mov ds, ax
+	mov es, ax
+	mov fs, ax
+	mov gs, ax
+	mov ss, ax
 
-  ; set up a temporary protected-mode IDT and GDT
-  lidt [pm_idtr - trampoline_start + TRAMPOLINE_BASE]
-  lgdt [pm_gdtr - trampoline_start + TRAMPOLINE_BASE]
+	; set up a temporary protected-mode IDT and GDT
+	lidt [pm_idtr - trampoline_start + TRAMPOLINE_BASE]
+	lgdt [pm_gdtr - trampoline_start + TRAMPOLINE_BASE]
 
-  ; set the PE flag
-  mov eax, cr0
-  or al, CR0_PE
-  mov cr0, eax
+	; set the PE flag
+	mov eax, cr0
+	or al, CR0_PE
+	mov cr0, eax
 
-  ; jump to the 32-bit code
-  jmp 0x8:(code32 - trampoline_start + TRAMPOLINE_BASE)
+	; jump to the 32-bit code
+	jmp 0x8:(code32 - trampoline_start + TRAMPOLINE_BASE)
 
 [bits 32]
 code32:
-  ; re-load segment selectors
-  mov ax, 0x10
-  mov ds, ax
-  mov ss, ax
-  mov ax, 0x0
-  mov es, ax
-  mov fs, ax
-  mov gs, ax
+	; re-load segment selectors
+	mov ax, 0x10
+	mov ds, ax
+	mov ss, ax
+	mov ax, 0x0
+	mov es, ax
+	mov fs, ax
+	mov gs, ax
 
-  ; enable PAE and PSE
-  mov eax, cr4
-  or eax, (CR4_PAE + CR4_PSE)
-  mov cr4, eax
+	; enable PAE and PSE
+	mov eax, cr4
+	or eax, (CR4_PAE + CR4_PSE)
+	mov cr4, eax
 
-  ; enable long mode and the NX bit
-  mov ecx, MSR_EFER
-  rdmsr
-  or eax, (EFER_LM + EFER_NX)
-  wrmsr
+	; enable long mode and the NX bit
+	mov ecx, MSR_EFER
+	rdmsr
+	or eax, (EFER_LM + EFER_NX)
+	wrmsr
 
-  ; set cr3 to a pointer to pml4
-  mov eax, boot_pml4
-  mov cr3, eax
+	; set cr3 to a pointer to pml4
+	mov eax, boot_pml4
+	mov cr3, eax
 
-  ; enable paging (the BSP already identity-mapped us)
-  mov eax, cr0
-  or eax, CR0_PAGING
-  mov cr0, eax
+	; enable paging (the BSP already identity-mapped us)
+	mov eax, cr0
+	or eax, CR0_PAGING
+	mov cr0, eax
 
-  ; leave compatibility mode
-  lgdt [lm_gdtr - trampoline_start + TRAMPOLINE_BASE]
-  jmp 0x08:(code64 - trampoline_start + TRAMPOLINE_BASE)
+	; leave compatibility mode
+	lgdt [lm_gdtr - trampoline_start + TRAMPOLINE_BASE]
+	jmp 0x08:(code64 - trampoline_start + TRAMPOLINE_BASE)
 
 [bits 64]
 code64:
-  ; re-load segment selectors
-  mov ax, 0x10
-  mov ss, ax
-  mov ax, 0x0
-  mov ds, ax
-  mov es, ax
-  mov fs, ax
-  mov gs, ax
+	; re-load segment selectors
+	mov ax, 0x10
+	mov ss, ax
+	mov ax, 0x0
+	mov ds, ax
+	mov es, ax
+	mov fs, ax
+	mov gs, ax
 
-  ; switch the RIP to use the higher half virtual address instead of the
-  ; identity-mapped virtual address
-  mov rax, qword vcode64
-  jmp rax
+	; switch the RIP to use the higher half virtual address instead of the
+	; identity-mapped virtual address
+	mov rax, qword vcode64
+	jmp rax
 vcode64:
 
-  ; set up the stack
-  mov rbp, 0x0 ; terminate stack traces here
-  mov rax, [qword trampoline_stack]
-  mov rsp, rax
+	; set up the stack
+	mov rbp, 0x0 ; terminate stack traces here
+	mov rax, [qword trampoline_stack]
+	mov rsp, rax
 
-  ; reset RFLAGS
-  push 0x0
-  popf
+	; reset RFLAGS
+	push 0x0
+	popf
+	
+	; Enable SSE* and AVX, including XSAVE/XRSTOR instructions
+	mov rax, cr0
+	and rax, ~0x4 ; Clear EM
+	or rax, 0x2 ; Set MP
+	mov cr0, rax
+	mov rax, cr4
+	or rax, 0x40600 ; Set OSFXSR, OSXMMEXCPT, OSXSAVE
+	mov cr4, rax
+	xor rcx, rcx ; Load XCR0 register
+	xgetbv
+	or eax, 0x7 ; Set X87, SSE, AVX
+	xsetbv ; Save XCR0 register
 
-  ; call the AP init C code
-  call smp_ap_init    ; Halts forever
+	; call the AP init C code
+	call smp_ap_init		; Halts forever
 
-  ; long mode gdt and gdtr
+	; long mode gdt and gdtr
 align 16
-  lm_gdtr:
-    dw lm_gdt_end - lm_gdt_start - 1
-    dq lm_gdt_start - trampoline_start + TRAMPOLINE_BASE
-
-align 16
-  lm_gdt_start:
-    ; null selector
-    dq 0
-    ; cs selector
-    dq 0x00AF98000000FFFF
-    ; ds selector
-    dq 0x00CF92000000FFFF
-  lm_gdt_end:
-
-  ; protected mode gdt and gdtr
-align 16
-  pm_gdtr:
-    dw pm_gdt_end - pm_gdt_start - 1
-    dd pm_gdt_start - trampoline_start + TRAMPOLINE_BASE
+	lm_gdtr:
+		dw lm_gdt_end - lm_gdt_start - 1
+		dq lm_gdt_start - trampoline_start + TRAMPOLINE_BASE
 
 align 16
-  pm_gdt_start:
-    ; null selector
-    dq 0
-    ; cs selector
-    dq 0x00CF9A000000FFFF
-    ; ds selector
-    dq 0x00CF92000000FFFF
-  pm_gdt_end:
+	lm_gdt_start:
+		; null selector
+		dq 0
+		; cs selector
+		dq 0x00AF98000000FFFF
+		; ds selector
+		dq 0x00CF92000000FFFF
+	lm_gdt_end:
 
-  ; protected mode idtr
+	; protected mode gdt and gdtr
 align 16
-  pm_idtr:
-    dw 0
-    dd 0
-    dd 0 ; so this is also a valid null idtr in long mode
+	pm_gdtr:
+		dw pm_gdt_end - pm_gdt_start - 1
+		dd pm_gdt_start - trampoline_start + TRAMPOLINE_BASE
+
+align 16
+	pm_gdt_start:
+		; null selector
+		dq 0
+		; cs selector
+		dq 0x00CF9A000000FFFF
+		; ds selector
+		dq 0x00CF92000000FFFF
+	pm_gdt_end:
+
+	; protected mode idtr
+align 16
+	pm_idtr:
+		dw 0
+		dd 0
+		dd 0 ; so this is also a valid null idtr in long mode
 
 [global trampoline_stack]
 trampoline_stack: ; variable for storing the virtual address of the AP's bootstrap stack
-  dq 0
+	dq 0
 
 [global trampoline_end]
 trampoline_end:

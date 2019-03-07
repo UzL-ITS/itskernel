@@ -665,26 +665,15 @@ void main()
 		}
 		else if(strcmp(args[0], "sysinfo") == 0)
 		{
-			// Retrieve processor count
-			uint32_t processorCount;
-			sys_info(0, (uint8_t *)&processorCount);
-			printf("CPU count: %d\n", processorCount);
+			// Print topology information
+			printf_locked("\n---    System topology    ---\n\n");
+			print_topology();
 			
-			// Retrieve topology data
-			uint32_t *topologyBuffer = (uint32_t *)malloc(processorCount * 12);
-			sys_info(1, (uint8_t *)topologyBuffer);
-			printf("CPU topology data:\n");
-			for(uint32_t p = 0; p < processorCount; ++p)
-			{
-				// Print data of this processor
-				printf("    CPU #%d:\n", p);
-				printf("        Package: %d\n", topologyBuffer[3 * p + 0]);
-				printf("        Core: %d\n", topologyBuffer[3 * p + 1]);
-				printf("        Thread: %d\n", topologyBuffer[3 * p + 2]);
-			}
+			// Print capabilities
+			printf_locked("\n---   CPUID information   ---\n\n");
+			print_capabilities();
 			
-			// Done
-			free(topologyBuffer);
+			printf_locked("\nDone.\n");
 		}
 		else if(strcmp(args[0], "memory") == 0)
 		{

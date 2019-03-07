@@ -639,6 +639,9 @@ static uint64_t _vmm_modify_flags(uintptr_t virt, uint64_t flags, bool set)
 	page_index_t index;
 	addr_to_index(&index, virt);
 	
+	// Entry will probably be modified
+	tlb_transaction_queue_invlpg(virt);
+	
 	// Check PML4 entry
 	uint64_t pml4entry = index.pml4[index.pml4index];
 	if(!(pml4entry & PG_PRESENT))
@@ -697,7 +700,9 @@ static uint64_t _vmm_modify_flags(uintptr_t virt, uint64_t flags, bool set)
 uint64_t vmm_modify_flags(uintptr_t virt, uint64_t flags, bool set)
 {
 	vmm_lock(virt);
+	tlb_transaction_init();
 	uint64_t entry = _vmm_modify_flags(virt, flags, set);
+	tlb_transaction_commit();
 	vmm_unlock(virt);
 	return entry;
 }

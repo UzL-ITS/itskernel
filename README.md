@@ -23,6 +23,12 @@ The provided scripts assume a Debian-style Linux system with, among others, foll
 * flex
 * nasm
 
+The kernel expects the following features on the target system:
+* x86 architecture with 64-bit long mode
+* PCI Express
+* AVX, including XSAVE/XRSTOR instructions
+
+
 ### Compiling build environment
 The kernel requires a special GCC-based cross-compiler.
 

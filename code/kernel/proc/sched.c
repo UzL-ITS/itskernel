@@ -12,6 +12,7 @@
 #include <stdlib/string.h>
 #include <stdbool.h>
 #include <io/keyboard.h>
+#include <cpu/xsave.h>
 
 #define SCHED_TIMESLICE 10 /* 10ms = 100Hz */
 
@@ -137,21 +138,29 @@ void sched_tick(cpu_state_t *state)
 		/* save the register file for the current thread */
 		if(currThread)
 		{
+			// Standard registers
 			memcpy(currThread->regs, state->regs, sizeof(state->regs));
 			currThread->rip = state->rip;
 			currThread->rsp = state->rsp;
 			currThread->rflags = state->rflags;
 			currThread->cs = state->cs;
 			currThread->ss = state->ss;
+			
+			// Vector registers
+			// These are not used by the kernel, thus they only need to be saved/restored on user-space thread switches
+			xsave(currThread->xsave_state);
 		}
 
-		/* restore the register file for the new thread */
+		// Restore standard registers
 		memcpy(state->regs, nextThread->regs, sizeof(state->regs));
 		state->rip = nextThread->rip;
 		state->rsp = nextThread->rsp;
 		state->rflags = nextThread->rflags;
 		state->cs = nextThread->cs;
 		state->ss = nextThread->ss;
+		
+		// Restore vector registers
+		xrstor(nextThread->xsave_state);
 
 		/* if we're switcing between processes, we need to switch address spaces */
 		if(!currThread || currThread->proc != nextThread->proc)
