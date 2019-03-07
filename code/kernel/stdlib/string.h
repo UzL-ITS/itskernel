@@ -14,6 +14,7 @@ void *memmove(void *dst, const void *src, size_t len);
 int memcmp(const void *ptr1, const void *ptr2, size_t len);
 
 char *strncpy(char *dest, const char *src, int n);
+char *strcpy(char *dest, const char *src);
 char *itoa(uint64_t value, char *str, int base);
 char *strrev(char *str);
 int strncmp(const char *str1, const char *str2, int n);

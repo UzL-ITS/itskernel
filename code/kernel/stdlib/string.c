@@ -127,6 +127,16 @@ char *strncpy(char *dest, const char *src, int n)
 	return ret;
 }
 
+char *strcpy(char *dest, const char *src)
+{
+	// Copy string
+	char *temp = dest;
+    while(*dest++ = *src++) {}
+	
+	// Done
+    return temp;
+}
+
 size_t strlen(const char *str)
 {
   const char *s;
